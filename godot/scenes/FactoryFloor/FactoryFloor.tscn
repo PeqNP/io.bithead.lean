@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3 uid="uid://factory_floor_001"]
+
+[ext_resource type="Script" path="res://scenes/FactoryFloor/FactoryFloor.gd" id="1_ff"]
+[ext_resource type="Script" path="res://scenes/FactoryFloor/Background.gd" id="2_bg"]
+[ext_resource type="PackedScene" path="res://scenes/common/ErrorModal.tscn" id="3_em"]
+
+[node name="FactoryFloor" type="Node2D"]
+script = ExtResource("1_ff")
+
+[node name="Background" type="Node2D" parent="."]
+script = ExtResource("2_bg")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(640, 360)
+zoom = Vector2(1, 1)
+limit_left = 0
+limit_top = 0
+limit_right = 1280
+limit_bottom = 1280
+position_smoothing_enabled = true
+
+[node name="Entities" type="Node2D" parent="."]
+
+[node name="ErrorModal" type="CanvasLayer" parent="."]
+layer = 128
+
+[node name="ErrorModal" parent="ErrorModal" instance=ExtResource("3_em")]

@@ -1,0 +1,43 @@
+[gd_scene load_steps=2 format=3 uid="uid://error_modal_001"]
+
+[ext_resource type="Script" path="res://scenes/common/ErrorModal.gd" id="1_errmod"]
+
+[node name="ErrorModal" type="CanvasLayer"]
+layer = 128
+script = ExtResource("1_errmod")
+
+[node name="Panel" type="Panel" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -180.0
+offset_top = -90.0
+offset_right = 180.0
+offset_bottom = 90.0
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = -12.0
+
+[node name="TitleLabel" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+text = "Error"
+theme_override_font_sizes/font_size = 14
+
+[node name="DescLabel" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+autowrap_mode = 3
+text = ""
+theme_override_font_sizes/font_size = 12
+
+[node name="OKButton" type="Button" parent="Panel/VBox"]
+layout_mode = 2
+text = "OK"
