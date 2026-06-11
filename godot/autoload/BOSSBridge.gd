@@ -4,6 +4,11 @@
 ##
 ## Access via the BOSSBridge autoload node. All HTTP calls are async.
 ##
+## Snapshot is fetched:
+##   - Once on configure() (triggered by BOSS web client)
+##   - Explicitly after in-Godot mutations (station add, work unit move, etc.)
+##   - Never on a timer.
+##
 ## Signals:
 ##   snapshot_updated(snapshot) - Emitted when a fresh FactoryFloor snapshot arrives.
 ##   error(message)             - Emitted on any HTTP error; FactoryFloor shows ErrorModal.

@@ -37,6 +37,9 @@ var _zoom_slider: CanvasLayer = null
 # Layer 6: last received snapshot (used by belt rendering and focus propagation).
 var _snapshot: Dictionary = {}
 
+# Layer 7: live map of entity_id → Node2D for O(1) lookup and reconciliation.
+var _entity_nodes: Dictionary = {}
+
 # Grid manager — owns tile occupation state.
 var grid: GridManager = GridManager.new()
 
@@ -86,6 +89,7 @@ func _on_boss_command(c_name: String, data: Dictionary) -> void:
 	match c_name:
 		"configure":
 			BOSSBridge.configure(data.get("factoryId", 0), data.get("baseUrl", ""))
+			_restore_viewport()
 		_:
 			push_warning("FactoryFloor: unknown BOSS command '%s'" % c_name)
 
@@ -100,45 +104,56 @@ func _on_snapshot_updated(snapshot: Dictionary) -> void:
 
 func _render_entities(snapshot: Dictionary) -> void:
 	_snapshot = snapshot
-
-	# Clear all existing entity children, but preserve the drag overlay.
 	var entities := $Entities
-	for child in entities.get_children():
-		if child == _drag_overlay:
-			continue
-		child.queue_free()
 
-	# Reset grid occupation.
-	grid = GridManager.new()
-	grid.floor_grew.connect(_on_floor_grew)
+	# Build incoming map: entity_id → {data, tile_w, tile_h}.
+	var incoming: Dictionary = {}
+	for line_data: Dictionary in (snapshot.get("lines", []) as Array):
+		incoming[line_data.get("id", 0)] = {"data": line_data, "tw": 12, "th": 2}
+	for inv_data: Dictionary in (snapshot.get("inventories", []) as Array):
+		incoming[inv_data.get("id", 0)] = {"data": inv_data, "tw": 2, "th": 2}
 
-	# Render Lines.
-	var lines: Array = snapshot.get("lines", [])
-	for line_data in lines:
-		var node: Node2D = LINE_SCENE.instantiate()
-		entities.add_child(node)
-		node.configure(line_data)
-		_wire_entity_signals(node, 12, 2)
-		grid.occupy(
-			line_data.get("gridX", 0),
-			line_data.get("gridY", 0),
-			12, 2,
-			line_data.get("id", 0)
-		)
+	# Remove entities no longer in the snapshot.
+	var stale: Array = []
+	for eid in _entity_nodes:
+		if not incoming.has(eid):
+			stale.append(eid)
+	for eid in stale:
+		grid.free_entity(eid)
+		_entity_nodes[eid].queue_free()
+		_entity_nodes.erase(eid)
 
-	# Render Inventories.
-	var inventories: Array = snapshot.get("inventories", [])
-	for inv_data in inventories:
-		var node: Node2D = INVENTORY_SCENE.instantiate()
-		entities.add_child(node)
-		node.configure(inv_data)
-		_wire_entity_signals(node, 2, 2)
-		grid.occupy(
-			inv_data.get("gridX", 0),
-			inv_data.get("gridY", 0),
-			2, 2,
-			inv_data.get("id", 0)
-		)
+	# Add new entities and update existing ones.
+	for eid in incoming:
+		var info: Dictionary = incoming[eid]
+		var c_data: Dictionary = info["data"]
+		var tw: int = info["tw"]
+		var th: int = info["th"]
+		var gx: int = c_data.get("gridX", 0)
+		var gy: int = c_data.get("gridY", 0)
+
+		if _entity_nodes.has(eid):
+			# Update existing — re-occupy grid only if position changed.
+			var node: Node2D = _entity_nodes[eid]
+			var old_x := int(node.position.x) / TILE_SIZE
+			var old_y := int(node.position.y) / TILE_SIZE
+			if old_x != gx or old_y != gy:
+				grid.free_entity(eid)
+				grid.occupy(gx, gy, tw, th, eid)
+			node.update(c_data)
+		else:
+			# Create new node.
+			var node: Node2D
+			if tw == 12:
+				node = LINE_SCENE.instantiate()
+			else:
+				node = INVENTORY_SCENE.instantiate()
+			entities.add_child(node)
+			node.configure(c_data)
+			node.set_zoom_index(_zoom_index)
+			_wire_entity_signals(node, tw, th)
+			grid.occupy(gx, gy, tw, th, eid)
+			_entity_nodes[eid] = node
 
 	_update_camera_limits()
 	_bg.floor_width_tiles  = grid.width_tiles
@@ -205,8 +220,10 @@ func _add_placeholder_line() -> void:
 	var node: Node2D = LINE_SCENE.instantiate()
 	$Entities.add_child(node)
 	node.configure(data)
+	node.set_zoom_index(_zoom_index)
 	_wire_entity_signals(node, 12, 2)
 	grid.occupy(pos.x, pos.y, 12, 2, data["id"])
+	_entity_nodes[data["id"]] = node
 	_scroll_camera_to_tile(pos)
 
 
@@ -226,8 +243,10 @@ func _add_placeholder_inventory() -> void:
 	var node: Node2D = INVENTORY_SCENE.instantiate()
 	$Entities.add_child(node)
 	node.configure(data)
+	node.set_zoom_index(_zoom_index)
 	_wire_entity_signals(node, 2, 2)
 	grid.occupy(pos.x, pos.y, 2, 2, data["id"])
+	_entity_nodes[data["id"]] = node
 	_scroll_camera_to_tile(pos)
 
 
@@ -266,6 +285,8 @@ func set_zoom(index: int) -> void:
 		clamped_index += 1
 	_zoom_index = clamped_index
 	_camera.zoom = ZOOM_LEVELS[_zoom_index]
+	_notify_entities_zoom()
+	_save_viewport()
 
 
 func zoom_in() -> void:
@@ -280,6 +301,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Pan with middle mouse drag.
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
 		_camera.position -= event.relative / _camera.zoom
+		_save_viewport()
 
 	# Zoom with scroll wheel.
 	if event is InputEventMouseButton:
@@ -530,9 +552,46 @@ func _on_zoom_slider_changed(index: int) -> void:
 # ---------------------------------------------------------------------------
 
 func _find_entity(entity_id: int) -> Node2D:
+	return _entity_nodes.get(entity_id)
+
+
+# ---------------------------------------------------------------------------
+# Layer 7: zoom notification + viewport persistence
+# ---------------------------------------------------------------------------
+
+func _notify_entities_zoom() -> void:
 	for child in $Entities.get_children():
 		if child == _drag_overlay:
 			continue
-		if "_entity_id" in child and child._entity_id == entity_id:
-			return child
-	return null
+		if child.has_method("set_zoom_index"):
+			child.set_zoom_index(_zoom_index)
+
+
+func _save_viewport() -> void:
+	if not is_web() or BOSSBridge.factory_id < 0:
+		return
+	var val := JSON.stringify({
+		"x": _camera.position.x,
+		"y": _camera.position.y,
+		"zoom": _zoom_index
+	})
+	# Single quotes around the value are safe because JSON uses double quotes internally.
+	JavaScriptBridge.eval("localStorage.setItem('ff_%d_vp', '%s')" % [BOSSBridge.factory_id, val])
+
+
+func _restore_viewport() -> void:
+	if not is_web() or BOSSBridge.factory_id < 0:
+		return
+	var raw = JavaScriptBridge.eval("localStorage.getItem('ff_%d_vp')" % BOSSBridge.factory_id)
+	if raw == null or typeof(raw) != TYPE_STRING or (raw as String).is_empty() or raw == "null":
+		return
+	var json := JSON.new()
+	if json.parse(raw as String) != OK:
+		return
+	var vp = json.get_data()
+	if not (vp is Dictionary):
+		return
+	_camera.position = Vector2(float((vp as Dictionary).get("x", 640)),
+		float((vp as Dictionary).get("y", 360)))
+	set_zoom(int((vp as Dictionary).get("zoom", 0)))
+	_zoom_slider.set_index(_zoom_index)

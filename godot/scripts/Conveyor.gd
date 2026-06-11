@@ -64,7 +64,30 @@ class ChevronBelt extends Node2D:
 
 	func _process(delta: float) -> void:
 		_offset = fmod(_offset + ANIM_SPEED * delta, CHEVRON_STEP)
-		queue_redraw()
+		if _is_in_viewport():
+			queue_redraw()
+
+
+	## Return true when any part of the belt falls within the camera viewport.
+	func _is_in_viewport() -> bool:
+		var vp := get_viewport()
+		if vp == null:
+			return true
+		var cam_xform: Transform2D = vp.get_canvas_transform()
+		var inv := cam_xform.affine_inverse()
+		var vp_rect: Rect2 = vp.get_visible_rect()
+		var world_tl := inv * vp_rect.position
+		var world_br := inv * vp_rect.end
+		var world_rect := Rect2(world_tl.min(world_br), (world_br - world_tl).abs())
+		# Belt AABB in global (world) space.
+		var gfrom := to_global(_from)
+		var gto   := to_global(_to)
+		var pad   := CHEVRON_SIZE + 2.0
+		var belt_rect := Rect2(
+			gfrom.min(gto) - Vector2(pad, pad),
+			(gto - gfrom).abs() + Vector2(pad * 2.0, pad * 2.0)
+		)
+		return world_rect.intersects(belt_rect)
 
 
 	func _draw() -> void:

@@ -403,3 +403,11 @@ func get_first_intake_world() -> Vector2:
 func get_output_world() -> Vector2:
 	var mid_y := 20.0 + SECTION_PAD + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
 	return position + Vector2(LINE_W, mid_y)
+
+
+## Called by FactoryFloor when camera zoom index changes.
+## zi: 0=100% 1=75% 2=50% 3=25%
+func set_zoom_index(zi: int) -> void:
+	_label.visible = (zi < 3)
+	if _active_overlay != null:
+		_active_overlay.set_zoom_index(zi)

@@ -115,6 +115,12 @@ func set_grayed(grayed: bool) -> void:
 		material = null
 
 
+## Called by FactoryFloor when camera zoom index changes.
+## zi: 0=100% 1=75% 2=50% 3=25%
+func set_zoom_index(zi: int) -> void:
+	_label.visible = (zi < 3)
+
+
 ## World-space point at the center-right edge — used as the belt source for
 ## Inventory→Station connections in Layer 6.
 func get_center_right_world() -> Vector2:

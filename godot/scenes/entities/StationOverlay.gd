@@ -27,6 +27,7 @@ var _station_data: Dictionary = {}
 var _scroll_offset: int = 0
 var _overlay_w: float = OVERLAY_W
 var _rows: Array = []            # cached row data for scroll
+var _compact: bool = false       # Layer 7: true at zoom ≤ 50%
 
 @onready var _content: Node2D = $Content
 @onready var _up_btn:   Button = $UpButton
@@ -42,6 +43,14 @@ func _ready() -> void:
 ## Width is set by Line.gd to match the card width.
 func set_width(w: float) -> void:
 	_overlay_w = w
+
+
+## Layer 7: zoom-dependent detail. At zi >= 2 (50% or less) use compact mode.
+func set_zoom_index(zi: int) -> void:
+	var was_compact := _compact
+	_compact = (zi >= 2)
+	if was_compact != _compact and is_visible():
+		_rebuild()
 
 
 func show_work_units(station_data: Dictionary) -> void:
@@ -80,6 +89,18 @@ func _rebuild() -> void:
 
 
 func _build_work_unit_rows() -> void:
+	if _compact:
+		# Compact mode: show only the work unit count.
+		var count := _rows.size()
+		var lbl := Label.new()
+		lbl.text = "%d work unit%s" % [count, "s" if count != 1 else ""]
+		lbl.position = Vector2(PAD, PAD)
+		lbl.size = Vector2(_overlay_w - PAD * 2, ROW_H)
+		lbl.add_theme_color_override("font_color", MUTED_COLOR)
+		lbl.add_theme_font_size_override("font_size", FONT_SIZE)
+		_content.add_child(lbl)
+		return
+
 	var visible_rows := _rows.slice(_scroll_offset,
 		min(_scroll_offset + MAX_VISIBLE, _rows.size()))
 	var y := PAD
