@@ -4,6 +4,7 @@
 ##
 ## Layer 1: static rendering.
 ## Layer 3: hover controls (Move, Focus, Lock), focus shader.
+## Layer 4: IntakeQueue cards, Hopper card, animated chevron conveyors.
 
 extends Node2D
 
@@ -23,7 +24,10 @@ const INTAKE_W  :=  4 * TILE_SIZE
 const HOPPER_W  :=  2 * TILE_SIZE
 const STATION_W :=  4 * TILE_SIZE
 const OUTPUT_W  :=  2 * TILE_SIZE
-const SECTION_PAD := 6
+const SECTION_PAD := 4
+
+const INTAKE_QUEUE_SCENE := preload("res://scenes/entities/IntakeQueue.tscn")
+const HOPPER_SCENE       := preload("res://scenes/entities/Hopper.tscn")
 
 ## Emitted to FactoryFloor to initiate a drag-move flow.
 signal move_requested(entity: Node2D, tile_w: int, tile_h: int)
@@ -99,6 +103,11 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, LINE_W, LINE_H), fill)
 	draw_rect(Rect2(0, 0, LINE_W, LINE_H), border, false, BORDER_WIDTH)
 
+	# Section dividers
+	for x in [INTAKE_W, INTAKE_W + HOPPER_W, INTAKE_W + HOPPER_W + STATION_W]:
+		draw_line(Vector2(x, BORDER_WIDTH), Vector2(x, LINE_H - BORDER_WIDTH),
+			border * Color(1, 1, 1, 0.4), 1.0)
+
 
 # ---------------------------------------------------------------------------
 # Hover controls
@@ -163,40 +172,66 @@ func _on_lock_pressed(lock_btn: Button, move_btn: Button) -> void:
 
 
 # ---------------------------------------------------------------------------
-# Sections
+# Sections — Layer 4: intake queue cards + hopper card
 # ---------------------------------------------------------------------------
 
 func _rebuild_sections() -> void:
 	for child in _sections.get_children():
 		child.queue_free()
 
-	var x := SECTION_PAD
-	var top := 20 + SECTION_PAD
-	var h   := LINE_H - top - SECTION_PAD
+	var top  := 20 + SECTION_PAD
+	var h    := LINE_H - top - SECTION_PAD
 
+	_rebuild_intake_queues(top, h)
+	_rebuild_hopper(top, h)
+	_rebuild_station_placeholder(top, h)
+	_rebuild_output_placeholder(top, h)
+
+
+func _rebuild_intake_queues(top: float, h: float) -> void:
 	var intake_queues: Array = _data.get("intakeQueues", [])
-	_add_section(_sections, x, top, INTAKE_W - SECTION_PAD * 2, h,
-		Color(0.2, 0.2, 0.5), "Intake\n(%d)" % intake_queues.size())
-	x += INTAKE_W
 
-	var hopper_wu = _data.get("hopperWorkUnit", null)
-	var hopper_label := "Hopper\n%s" % (str(hopper_wu.get("name", "")) if hopper_wu else "—")
-	_add_section(_sections, x, top, HOPPER_W - SECTION_PAD * 2, h,
-		Color(0.2, 0.3, 0.5), hopper_label)
-	x += HOPPER_W
+	if intake_queues.is_empty():
+		# Empty placeholder with section label.
+		_add_placeholder(_sections, SECTION_PAD, top, INTAKE_W - SECTION_PAD * 2, h,
+			Color(0.15, 0.15, 0.40), "Intake\n(empty)")
+		return
 
+	# Divide the intake zone evenly among queues.
+	var zone_w := INTAKE_W - SECTION_PAD * 2
+	var card_w := zone_w / float(intake_queues.size())
+	for i in intake_queues.size():
+		var card_x := SECTION_PAD + i * card_w
+		var iq := INTAKE_QUEUE_SCENE.instantiate()
+		_sections.add_child(iq)
+		iq.configure(intake_queues[i], card_x, top, card_w - SECTION_PAD, h)
+
+
+func _rebuild_hopper(top: float, h: float) -> void:
+	var hopper := HOPPER_SCENE.instantiate()
+	_sections.add_child(hopper)
+	var card_x := INTAKE_W + SECTION_PAD
+	var card_w := HOPPER_W - SECTION_PAD * 2
+	hopper.configure(_data, card_x, top, card_w, h)
+
+
+func _rebuild_station_placeholder(top: float, h: float) -> void:
 	var stations: Array = _data.get("stations", [])
-	_add_section(_sections, x, top, STATION_W - SECTION_PAD * 2, h,
-		Color(0.2, 0.2, 0.4), "Stations\n(%d)" % stations.size())
-	x += STATION_W
+	var x := INTAKE_W + HOPPER_W + SECTION_PAD
+	_add_placeholder(_sections, x, top, STATION_W - SECTION_PAD * 2, h,
+		Color(0.15, 0.15, 0.35), "Stations\n(%d)" % stations.size())
 
+
+func _rebuild_output_placeholder(top: float, h: float) -> void:
 	var has_output: bool = _data.get("hasOutput", true)
-	if has_output:
-		_add_section(_sections, x, top, OUTPUT_W - SECTION_PAD * 2, h,
-			Color(0.15, 0.4, 0.15), "Output")
+	if not has_output:
+		return
+	var x := INTAKE_W + HOPPER_W + STATION_W + SECTION_PAD
+	_add_placeholder(_sections, x, top, OUTPUT_W - SECTION_PAD * 2, h,
+		Color(0.12, 0.30, 0.12), "Output")
 
 
-func _add_section(parent: Node2D, x: int, y: int, w: int, h: int,
+func _add_placeholder(parent: Node2D, x: float, y: float, w: float, h: float,
 		color: Color, c_text: String) -> void:
 	var r := ColorRect.new()
 	r.position = Vector2(x, y)
@@ -215,21 +250,35 @@ func _add_section(parent: Node2D, x: int, y: int, w: int, h: int,
 
 
 # ---------------------------------------------------------------------------
-# Conveyors (static stub — animated in Layer 4)
+# Conveyors — Layer 4: animated chevron belts
 # ---------------------------------------------------------------------------
 
 func _rebuild_conveyors() -> void:
 	for child in _conveyors.get_children():
 		child.queue_free()
 
-	var top := 20 + SECTION_PAD
+	var top   := 20 + SECTION_PAD
 	var mid_y := top + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
 
-	var points := [
-		Vector2(INTAKE_W,                          mid_y),
-		Vector2(INTAKE_W + HOPPER_W,               mid_y),
-		Vector2(INTAKE_W + HOPPER_W + STATION_W,   mid_y),
-	]
+	# Intake → Hopper
+	Conveyor.draw_animated(
+		Vector2(INTAKE_W - SECTION_PAD, mid_y),
+		Vector2(INTAKE_W + SECTION_PAD, mid_y),
+		_conveyors
+	)
 
-	for i in range(points.size() - 1):
-		Conveyor.draw_static(points[i], points[i + 1], _conveyors)
+	# Hopper → Stations
+	Conveyor.draw_animated(
+		Vector2(INTAKE_W + HOPPER_W - SECTION_PAD, mid_y),
+		Vector2(INTAKE_W + HOPPER_W + SECTION_PAD, mid_y),
+		_conveyors
+	)
+
+	# Stations → Output
+	var has_output: bool = _data.get("hasOutput", true)
+	if has_output:
+		Conveyor.draw_animated(
+			Vector2(INTAKE_W + HOPPER_W + STATION_W - SECTION_PAD, mid_y),
+			Vector2(INTAKE_W + HOPPER_W + STATION_W + SECTION_PAD, mid_y),
+			_conveyors
+		)
