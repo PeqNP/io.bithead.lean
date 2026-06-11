@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://drag_overlay"]
+
+[ext_resource type="Script" path="res://scenes/common/DragOverlay.gd" id="1"]
+
+[node name="DragOverlay" type="Node2D"]
+script = ExtResource("1")
+visible = false
+
+[node name="PosLabel" type="Label" parent="."]

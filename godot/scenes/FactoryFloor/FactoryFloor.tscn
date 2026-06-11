@@ -1,27 +1,29 @@
-[gd_scene load_steps=4 format=3 uid="uid://factory_floor_001"]
+[gd_scene format=3 uid="uid://blb31druat2iw"]
 
-[ext_resource type="Script" path="res://scenes/FactoryFloor/FactoryFloor.gd" id="1_ff"]
-[ext_resource type="Script" path="res://scenes/FactoryFloor/Background.gd" id="2_bg"]
+[ext_resource type="Script" uid="uid://dhot1iehsmg7u" path="res://scenes/FactoryFloor/FactoryFloor.gd" id="1_ff"]
+[ext_resource type="Script" uid="uid://cto7uqcv7elv7" path="res://scenes/FactoryFloor/Background.gd" id="2_bg"]
 [ext_resource type="PackedScene" path="res://scenes/common/ErrorModal.tscn" id="3_em"]
+[ext_resource type="PackedScene" path="res://scenes/common/OperationPanel.tscn" id="4_op"]
 
-[node name="FactoryFloor" type="Node2D"]
+[node name="FactoryFloor" type="Node2D" unique_id=221909735]
 script = ExtResource("1_ff")
 
-[node name="Background" type="Node2D" parent="."]
+[node name="Background" type="Node2D" parent="." unique_id=1214889385]
 script = ExtResource("2_bg")
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1504105703]
 position = Vector2(640, 360)
-zoom = Vector2(1, 1)
 limit_left = 0
 limit_top = 0
 limit_right = 1280
 limit_bottom = 1280
 position_smoothing_enabled = true
 
-[node name="Entities" type="Node2D" parent="."]
+[node name="Entities" type="Node2D" parent="." unique_id=435221844]
 
-[node name="ErrorModal" type="CanvasLayer" parent="."]
+[node name="ErrorModal" type="CanvasLayer" parent="." unique_id=1714527023]
 layer = 128
 
-[node name="ErrorModal" parent="ErrorModal" instance=ExtResource("3_em")]
+[node name="ErrorModal" parent="ErrorModal" unique_id=724724646 instance=ExtResource("3_em")]
+
+[node name="OperationPanel" parent="." unique_id=1911488669 instance=ExtResource("4_op")]

@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3 uid="uid://inventory_entity_001"]
+
+[ext_resource type="Script" path="res://scenes/entities/Inventory.gd" id="1_inv"]
+
+[node name="Inventory" type="Node2D"]
+script = ExtResource("1_inv")
+
+[node name="Label" type="Label" parent="."]
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 122.0
+offset_bottom = 58.0
+autowrap_mode = 3
+
+[node name="HealthStrip" type="ColorRect" parent="."]
+color = Color(0.086, 0.396, 0.204, 1)
+offset_top = 110.0
+offset_right = 128.0
+offset_bottom = 128.0
+visible = false
+
+[node name="Controls" type="Node2D" parent="."]
+visible = false

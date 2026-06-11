@@ -21,6 +21,10 @@ signal error(message: String)
 var _factory_id: int = -1
 var _base_url: String = ""
 
+## Read-only access to the current factory id.
+var factory_id: int:
+	get: return _factory_id
+
 
 ## Store factory_id and base_url, then immediately fetch first snapshot.
 func configure(factory_id: int, base_url: String) -> void:
