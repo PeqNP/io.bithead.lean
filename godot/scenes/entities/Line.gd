@@ -5,6 +5,7 @@
 ## Layer 1: static rendering.
 ## Layer 3: hover controls (Move, Focus, Lock), focus shader.
 ## Layer 4: IntakeQueue cards, Hopper card, animated chevron conveyors.
+## Layer 5: Station cards, Work Units / Operations overlays, Add Station.
 
 extends Node2D
 
@@ -28,6 +29,8 @@ const SECTION_PAD := 4
 
 const INTAKE_QUEUE_SCENE := preload("res://scenes/entities/IntakeQueue.tscn")
 const HOPPER_SCENE       := preload("res://scenes/entities/Hopper.tscn")
+const STATION_SCENE      := preload("res://scenes/entities/Station.tscn")
+const OVERLAY_SCENE      := preload("res://scenes/entities/StationOverlay.tscn")
 
 ## Emitted to FactoryFloor to initiate a drag-move flow.
 signal move_requested(entity: Node2D, tile_w: int, tile_h: int)
@@ -41,6 +44,11 @@ var _entity_id: int = 0
 var _focused: bool = false
 var _locked: bool = false
 var _hovered: bool = false
+
+# Layer 5: overlay state (at most one overlay open per Line).
+var _active_overlay: Node2D = null   # the StationOverlay instance
+var _active_station_id: int = -1
+var _active_overlay_type: String = ""
 
 @onready var _label:     Label  = $Label
 @onready var _sections:  Node2D = $Sections
@@ -184,7 +192,7 @@ func _rebuild_sections() -> void:
 
 	_rebuild_intake_queues(top, h)
 	_rebuild_hopper(top, h)
-	_rebuild_station_placeholder(top, h)
+	_rebuild_stations(top, h)
 	_rebuild_output_placeholder(top, h)
 
 
@@ -215,11 +223,89 @@ func _rebuild_hopper(top: float, h: float) -> void:
 	hopper.configure(_data, card_x, top, card_w, h)
 
 
-func _rebuild_station_placeholder(top: float, h: float) -> void:
+func _rebuild_station_placeholder(_top: float, _h: float) -> void:
+	# Replaced in Layer 5 — this stub kept to avoid breaking _rebuild_sections call order.
+	pass
+
+
+# ---------------------------------------------------------------------------
+# Sections — Layer 5: Station cards + overlay
+# ---------------------------------------------------------------------------
+
+func _rebuild_stations(top: float, h: float) -> void:
 	var stations: Array = _data.get("stations", [])
-	var x := INTAKE_W + HOPPER_W + SECTION_PAD
-	_add_placeholder(_sections, x, top, STATION_W - SECTION_PAD * 2, h,
-		Color(0.15, 0.15, 0.35), "Stations\n(%d)" % stations.size())
+	var zone_x   := float(INTAKE_W + HOPPER_W)
+	var zone_w   := float(STATION_W)
+
+	if stations.is_empty():
+		_add_placeholder(_sections, zone_x + SECTION_PAD, top,
+			zone_w - SECTION_PAD * 2, h, Color(0.12, 0.12, 0.30), "Stations\n(none)")
+		_add_station_button(zone_x + SECTION_PAD, top, h, -1, 0)
+		return
+
+	var card_w := (zone_w - SECTION_PAD * 2) / float(stations.size())
+
+	for i in stations.size():
+		var card_x := zone_x + SECTION_PAD + i * card_w
+		var station := STATION_SCENE.instantiate()
+		_sections.add_child(station)
+		station.configure(stations[i], i, card_x, top, card_w - SECTION_PAD, h)
+		station.overlay_requested.connect(
+			func(s: Node2D, ot: String): _on_overlay_requested(s, ot, card_x, top)
+		)
+
+		# Add "+" before first and between each pair.
+		if i == 0:
+			_add_station_button(zone_x + SECTION_PAD - 14, top, h, _data.get("id", 0), 0)
+		_add_station_button(card_x + card_w, top, h, _data.get("id", 0), i + 1)
+
+	# Create (or reuse) the shared overlay instance.
+	if _active_overlay == null:
+		_active_overlay = OVERLAY_SCENE.instantiate()
+		add_child(_active_overlay)   # child of Line so it renders above sections
+
+
+## Small "+" button to add a station at a given position.
+func _add_station_button(x: float, top: float, h: float,
+		line_id: int, position_index: int) -> void:
+	var btn := Button.new()
+	btn.text = "+"
+	btn.position = Vector2(x - 7, top + h / 2.0 - 10)
+	btn.size = Vector2(14, 20)
+	btn.add_theme_font_size_override("font_size", 10)
+	btn.pressed.connect(_on_add_station.bind(line_id, position_index))
+	_sections.add_child(btn)
+
+
+func _on_add_station(line_id: int, position_index: int) -> void:
+	await BOSSBridge.post("/lean/station", {"lineId": line_id, "position": position_index})
+	BOSSBridge.poll_snapshot()
+
+
+func _on_overlay_requested(station: Node2D, overlay_type: String,
+		card_x: float, card_top: float) -> void:
+	var station_id: int = -1
+	if "_data" in station:
+		station_id = (station._data as Dictionary).get("id", -1)
+
+	# Toggle: pressing the same button again closes the overlay.
+	if _active_station_id == station_id and _active_overlay_type == overlay_type:
+		_active_overlay.hide_overlay()
+		_active_station_id = -1
+		_active_overlay_type = ""
+		return
+
+	_active_station_id = station_id
+	_active_overlay_type = overlay_type
+
+	# Position overlay just below the station card.
+	_active_overlay.position = Vector2(card_x, card_top + station._card_h + 2)
+	_active_overlay.set_width(station._card_w)
+
+	if overlay_type == "work_units":
+		_active_overlay.show_work_units(station._data)
+	else:
+		_active_overlay.show_operations(station._data)
 
 
 func _rebuild_output_placeholder(top: float, h: float) -> void:
