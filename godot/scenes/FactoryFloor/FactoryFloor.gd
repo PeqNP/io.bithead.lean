@@ -366,7 +366,7 @@ func _on_move_requested(entity: Node2D, tile_w: int, tile_h: int) -> void:
 	_drag_entity_id = entity._entity_id
 	_drag_tile_w = tile_w
 	_drag_tile_h = tile_h
-	_drag_overlay.begin(grid, tile_w, tile_h, _drag_entity_id)
+	_drag_overlay.begin(grid, tile_w, tile_h, _drag_entity_id, entity.position)
 	_panel.set_busy(true)
 
 

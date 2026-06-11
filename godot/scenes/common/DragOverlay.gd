@@ -18,6 +18,7 @@ var _grid: GridManager = null
 var _tile_w: int = 0
 var _tile_h: int = 0
 var _exclude_id: int = 0   # id of entity being moved (treated as available)
+var _drag_offset: Vector2 = Vector2.ZERO   # mouse-to-entity-top-left offset at drag start
 var _snap_tile: Vector2i = Vector2i.ZERO
 var _valid: bool = false
 
@@ -33,11 +34,18 @@ func _ready() -> void:
 
 
 ## Start a drag operation for an entity of tile size w×h with given id.
-func begin(grid: GridManager, tile_w: int, tile_h: int, exclude_id: int) -> void:
+## entity_pos is the entity's world-space top-left at the moment Move is pressed;
+## it is used to keep the mouse anchored at the same relative point within the entity.
+func begin(grid: GridManager, tile_w: int, tile_h: int, exclude_id: int,
+		entity_pos: Vector2) -> void:
 	_grid = grid
 	_tile_w = tile_w
 	_tile_h = tile_h
 	_exclude_id = exclude_id
+	_drag_offset = get_global_mouse_position() - entity_pos
+	# Clamp offset so it stays within entity bounds.
+	_drag_offset.x = clamp(_drag_offset.x, 0.0, tile_w * TILE_SIZE - 1.0)
+	_drag_offset.y = clamp(_drag_offset.y, 0.0, tile_h * TILE_SIZE - 1.0)
 	show()
 	set_process(true)
 
@@ -51,9 +59,11 @@ func end() -> Vector2i:
 
 func _process(_delta: float) -> void:
 	var mouse_world := get_global_mouse_position()
+	# Subtract the click offset so the entity top-left — not the mouse — snaps to a tile.
+	var anchored := mouse_world - _drag_offset
 	_snap_tile = Vector2i(
-		int(mouse_world.x) / TILE_SIZE,
-		int(mouse_world.y) / TILE_SIZE
+		int(anchored.x) / TILE_SIZE,
+		int(anchored.y) / TILE_SIZE
 	)
 	_snap_tile.x = max(0, _snap_tile.x)
 	_snap_tile.y = max(0, _snap_tile.y)
