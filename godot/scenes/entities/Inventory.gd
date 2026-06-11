@@ -4,6 +4,7 @@
 ##
 ## Layer 1: static rendering.
 ## Layer 3: hover controls (Move, Focus, Lock), focus shader.
+## Layer 6: stock expand panel, get_center_right_world() for belt routing.
 
 extends Node2D
 
@@ -25,6 +26,8 @@ const HEALTH_COLORS := {
 	3: Color(0.600, 0.106, 0.106),
 }
 
+const STOCK_PANEL_SCENE := preload("res://scenes/entities/InventoryStockPanel.tscn")
+
 signal move_requested(entity: Node2D, tile_w: int, tile_h: int)
 signal focus_toggled(entity_id: int, focused: bool)
 signal lock_toggled(entity_id: int, locked: bool)
@@ -35,6 +38,11 @@ var _focused: bool = false
 var _locked: bool = false
 var _hovered: bool = false
 
+# Layer 6: stock expand panel.
+var _stock_panel: Node2D = null
+var _stock_btn: Button = null
+var _stock_open: bool = false
+
 @onready var _label:        Label     = $Label
 @onready var _health_strip: ColorRect = $HealthStrip
 @onready var _controls:     Node2D    = $Controls
@@ -43,6 +51,20 @@ var _hovered: bool = false
 func _ready() -> void:
 	set_process_input(true)
 	queue_redraw()
+
+	# Layer 6: stock expand panel below the card.
+	_stock_panel = STOCK_PANEL_SCENE.instantiate()
+	_stock_panel.position = Vector2(0, INV_H + 2)
+	_stock_panel.hide()
+	add_child(_stock_panel)
+
+	_stock_btn = Button.new()
+	_stock_btn.text = "Stock ▼"
+	_stock_btn.position = Vector2(2, INV_H - 15)
+	_stock_btn.size = Vector2(INV_W - 4, 13)
+	_stock_btn.add_theme_font_size_override("font_size", 8)
+	_stock_btn.pressed.connect(_on_stock_pressed)
+	add_child(_stock_btn)
 
 
 func _input(event: InputEvent) -> void:
@@ -74,6 +96,8 @@ func configure(data: Dictionary) -> void:
 	else:
 		_health_strip.hide()
 
+	if _stock_panel != null:
+		_stock_panel.configure(data)
 	_rebuild_controls()
 	queue_redraw()
 
@@ -89,6 +113,12 @@ func set_grayed(grayed: bool) -> void:
 		material = mat
 	else:
 		material = null
+
+
+## World-space point at the center-right edge — used as the belt source for
+## Inventory→Station connections in Layer 6.
+func get_center_right_world() -> Vector2:
+	return position + Vector2(INV_W, INV_H / 2.0)
 
 
 func _draw() -> void:
@@ -154,3 +184,9 @@ func _on_lock_pressed(lock_btn: Button, move_btn: Button) -> void:
 	lock_btn.text = "Unlock" if _locked else "Lock"
 	move_btn.disabled = _locked
 	lock_toggled.emit(_entity_id, _locked)
+
+
+func _on_stock_pressed() -> void:
+	_stock_open = !_stock_open
+	_stock_panel.visible = _stock_open
+	_stock_btn.text = "Stock ▲" if _stock_open else "Stock ▼"

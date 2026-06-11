@@ -6,6 +6,7 @@
 ## Layer 1: Render Line and Inventory entities from snapshot.
 ## Layer 2: OperationPanel — Create Line / Create Inventory flows.
 ## Layer 3: Hover controls, drag-to-move, focus/gray-out, lock, zoom slider.
+## Layer 6: Cross-entity belts (Inventory→Station amber, subassembly purple), focus propagation.
 
 extends Node2D
 
@@ -33,6 +34,9 @@ var _drag_tile_h: int = 0
 var _focus_active: bool = false       # true when any entity is focused
 var _zoom_slider: CanvasLayer = null
 
+# Layer 6: last received snapshot (used by belt rendering and focus propagation).
+var _snapshot: Dictionary = {}
+
 # Grid manager — owns tile occupation state.
 var grid: GridManager = GridManager.new()
 
@@ -43,6 +47,7 @@ var _boss: BOSSDelegate
 @onready var _error_modal: CanvasLayer  = $ErrorModal/ErrorModal
 @onready var _bg:          Node2D      = $Background
 @onready var _panel:       CanvasLayer = $OperationPanel
+@onready var _belt_layer:  Node2D      = $BeltLayer
 
 func is_web() -> bool:
 	return OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge")
@@ -94,6 +99,8 @@ func _on_snapshot_updated(snapshot: Dictionary) -> void:
 
 
 func _render_entities(snapshot: Dictionary) -> void:
+	_snapshot = snapshot
+
 	# Clear all existing entity children, but preserve the drag overlay.
 	var entities := $Entities
 	for child in entities.get_children():
@@ -137,6 +144,7 @@ func _render_entities(snapshot: Dictionary) -> void:
 	_bg.floor_width_tiles  = grid.width_tiles
 	_bg.floor_height_tiles = grid.height_tiles
 	_bg.queue_redraw()
+	_render_belts()
 
 
 func _on_boss_error(message: String) -> void:
@@ -342,6 +350,7 @@ func _confirm_drag() -> void:
 	_bg.floor_width_tiles  = grid.width_tiles
 	_bg.floor_height_tiles = grid.height_tiles
 	_bg.queue_redraw()
+	_render_belts()
 
 
 func _cancel_drag() -> void:
@@ -385,15 +394,111 @@ func _on_focus_toggled(entity_id: int, focused: bool) -> void:
 
 
 func _apply_focus_shader() -> void:
+	# Build the set of entity IDs that should stay full opacity when focus is active.
+	# A focused entity keeps itself and all entities it connects to (Layer 6).
+	var visible_ids: Dictionary = {}
+	if _focus_active:
+		for child in $Entities.get_children():
+			if child == _drag_overlay or not child.has_method("set_grayed"):
+				continue
+			if child._focused:
+				visible_ids[child._entity_id] = true
+				_collect_connected_ids(child._entity_id, visible_ids)
+
 	for child in $Entities.get_children():
 		if child == _drag_overlay:
 			continue
 		if not child.has_method("set_grayed"):
 			continue
 		if _focus_active:
-			child.set_grayed(!child._focused)
+			child.set_grayed(!visible_ids.has(child._entity_id))
 		else:
 			child.set_grayed(false)
+
+
+## Collect all entity IDs connected (directly) to entity_id via station links.
+func _collect_connected_ids(entity_id: int, result: Dictionary) -> void:
+	for line_data in _snapshot.get("lines", []):
+		var c_line_id: int = line_data.get("id", 0)
+		for st in (line_data.get("stations", []) as Array):
+			var inv_raw = st.get("connectsToInventory")
+			var sub_raw = st.get("connectsToLine")
+			var inv_id: int = int(inv_raw) if inv_raw != null else 0
+			var sub_id: int = int(sub_raw) if sub_raw != null else 0
+			# Focused line → mark its connected inventory and sub-line.
+			if c_line_id == entity_id:
+				if inv_id != 0: result[inv_id] = true
+				if sub_id != 0: result[sub_id] = true
+			# Focused inventory or sub-line → mark the line that references it.
+			if inv_id == entity_id or sub_id == entity_id:
+				result[c_line_id] = true
+
+
+# ---------------------------------------------------------------------------
+# Layer 6: cross-entity belt rendering
+# ---------------------------------------------------------------------------
+
+## Rebuild all cross-entity conveyor belts from the last snapshot.
+## Amber: Inventory → Station. Purple: Station ↔ sub-assembly Line.
+func _render_belts() -> void:
+	for child in _belt_layer.get_children():
+		child.queue_free()
+
+	if _snapshot.is_empty():
+		return
+
+	# Build entity lookup by id.
+	var line_nodes: Dictionary = {}
+	var inv_nodes: Dictionary = {}
+	for child in $Entities.get_children():
+		if child == _drag_overlay:
+			continue
+		var tile_w: int = child.get_meta("tile_w", 0)
+		if tile_w == 12:
+			line_nodes[child._entity_id] = child
+		elif tile_w == 2:
+			inv_nodes[child._entity_id] = child
+
+	for line_data in _snapshot.get("lines", []):
+		var c_line_id: int = line_data.get("id", 0)
+		var line_node = line_nodes.get(c_line_id)
+		if line_node == null:
+			continue
+		var stations: Array = line_data.get("stations", [])
+		for i in stations.size():
+			var st: Dictionary = stations[i]
+
+			# Inventory → Station belt (amber).
+			var inv_raw = st.get("connectsToInventory")
+			if inv_raw != null:
+				var inv_node = inv_nodes.get(int(inv_raw))
+				if inv_node != null:
+					Conveyor.draw_animated(
+						inv_node.get_center_right_world(),
+						line_node.get_station_input_world(i),
+						_belt_layer,
+						Color(1.0, 0.65, 0.1, 0.9)   # amber
+					)
+
+			# Sub-assembly belts (purple).
+			var sub_raw = st.get("connectsToLine")
+			if sub_raw != null:
+				var sub_node = line_nodes.get(int(sub_raw))
+				if sub_node != null:
+					# Forward: station top → sub-line first intake.
+					Conveyor.draw_animated(
+						line_node.get_station_top_world(i),
+						sub_node.get_first_intake_world(),
+						_belt_layer,
+						Color(0.65, 0.2, 0.9, 0.9)   # purple
+					)
+					# Return: sub-line output → station top.
+					Conveyor.draw_animated(
+						sub_node.get_output_world(),
+						line_node.get_station_top_world(i),
+						_belt_layer,
+						Color(0.65, 0.2, 0.9, 0.9)
+					)
 
 
 # ---------------------------------------------------------------------------

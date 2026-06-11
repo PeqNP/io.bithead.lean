@@ -11,6 +11,8 @@ script = ExtResource("1_ff")
 [node name="Background" type="Node2D" parent="." unique_id=1214889385]
 script = ExtResource("2_bg")
 
+[node name="BeltLayer" type="Node2D" parent="." unique_id=1614889385]
+
 [node name="Camera2D" type="Camera2D" parent="." unique_id=1504105703]
 position = Vector2(640, 360)
 limit_left = 0

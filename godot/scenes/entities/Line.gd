@@ -368,3 +368,38 @@ func _rebuild_conveyors() -> void:
 			Vector2(INTAKE_W + HOPPER_W + STATION_W + SECTION_PAD, mid_y),
 			_conveyors
 		)
+
+
+# ---------------------------------------------------------------------------
+# Layer 6: world-space connection points for belt routing
+# ---------------------------------------------------------------------------
+
+## World-space left-edge center of station[index]. Used for Inventory→Station belts.
+func get_station_input_world(station_index: int) -> Vector2:
+	var n: int = max(1, _data.get("stations", []).size())
+	var zone_x := float(INTAKE_W + HOPPER_W)
+	var card_w := (float(STATION_W) - SECTION_PAD * 2) / float(n)
+	var card_x := zone_x + SECTION_PAD + station_index * card_w
+	var mid_y := 20.0 + SECTION_PAD + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
+	return position + Vector2(card_x, mid_y)
+
+
+## World-space top-center of station[index]. Used as the subassembly forward/return anchor.
+func get_station_top_world(station_index: int) -> Vector2:
+	var n: int = max(1, _data.get("stations", []).size())
+	var zone_x := float(INTAKE_W + HOPPER_W)
+	var card_w := (float(STATION_W) - SECTION_PAD * 2) / float(n)
+	var card_x := zone_x + SECTION_PAD + station_index * card_w
+	return position + Vector2(card_x + card_w / 2.0, 0.0)
+
+
+## World-space left-edge center of the first intake queue. Subassembly return target.
+func get_first_intake_world() -> Vector2:
+	var mid_y := 20.0 + SECTION_PAD + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
+	return position + Vector2(0.0, mid_y)
+
+
+## World-space right-edge center of the output section. Subassembly return source.
+func get_output_world() -> Vector2:
+	var mid_y := 20.0 + SECTION_PAD + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
+	return position + Vector2(LINE_W, mid_y)
