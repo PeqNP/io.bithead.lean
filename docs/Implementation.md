@@ -43,6 +43,40 @@ var c_name: String = str(cmd["name"])
 
 Common built-ins to watch for: `name`, `position`, `size`, `scale`, `rotation`, `visible`, `owner`, `type`, `data`, `id`.
 
+### `mouse_filter` is a `Control`-only property
+
+`Node2D` does not have `mouse_filter`. Do not set it. `Node2D` input pickable state is controlled by `input_pickable` (default `true`).
+
+### `mouse_entered` / `mouse_exited` signals on `Node2D`
+
+These signals on `Node2D` require a physics body or collision shape to fire. For drawn nodes (pure `_draw()` rendering), use `_input(event: InputEvent)` instead:
+
+```gdscript
+func _input(event: InputEvent) -> void:
+    if event is InputEventMouseMotion:
+        var local := to_local(get_viewport().get_mouse_position())
+        var inside := Rect2(0, 0, WIDTH, HEIGHT).has_point(local)
+        if inside != _hovered:
+            _set_hovered(inside)
+```
+
+### `set_process` default is enabled
+
+All `Node` subclasses have `_process` enabled by default. If a node's `_process` accesses state that is only valid after an explicit `begin()`-style setup call, disable processing in `_ready()` and re-enable in `begin()`:
+
+```gdscript
+func _ready() -> void:
+    set_process(false)
+
+func begin(...) -> void:
+    # set up state
+    set_process(true)
+```
+
+### `Conveyor.draw_static` argument order
+
+Signature is `draw_static(from: Vector2, to: Vector2, parent: Node2D)`. The parent node is the **last** argument, not the first.
+
 ---
 
 ## Project File Structure
@@ -62,6 +96,10 @@ godot/
       ErrorModal.gd
       OperationPanel.tscn    # Toolbox (Layer 2+)
       OperationPanel.gd
+      DragOverlay.tscn       # Layer 3: drag-to-move tile highlight
+      DragOverlay.gd
+      ZoomSlider.tscn        # Layer 3: fixed top-right zoom buttons
+      ZoomSlider.gd
     entities/
       Line.tscn
       Line.gd
@@ -241,48 +279,52 @@ Draw a static line from the center-right of each internal component to the cente
 ### Hover controls (shown on mouse-enter, hidden on mouse-exit)
 
 Each Line/Inventory node shows a control bar on hover containing:
-- **Move** (circular drag handle icon) — see below
-- **Edit** — JB stub (no BOSS route yet; prints to console)
-- **Focus** toggle
-- **Lock** toggle
+- **Move** button — initiates drag flow (disabled when locked)
+- **Focus/Unfocus** toggle button
+- **Lock/Unlock** toggle button
+
+Hover detection: `Node2D` does not have `mouse_entered`/`mouse_exited`. Instead, `_input(event)` checks `InputEventMouseMotion`, converts viewport mouse position to local space with `to_local()`, and tests against the entity's bounding rect.
 
 ### Move
 
-- Drag initiated only via the Move handle (not the whole node)
-- While dragging:
-  - Ghost node follows mouse
-  - Highlight available tiles green, occupied tiles red (using `GridManager`)
-  - Live position label shows `(X, Y)` in tile coordinates
-  - If dragged near right/bottom edge → `GridManager.grow_if_needed()`
-- On drop on valid tile: `BOSSBridge.patch("/lean/line/:id/position", {x, y})` (or inventory equivalent) → re-poll
-- On drop on invalid tile: revert to original position, briefly flash red
+- Drag initiated via Move button; `move_requested(entity, tile_w, tile_h)` signal emitted to `FactoryFloor`
+- `DragOverlay` scene handles visual feedback (world-space `Node2D`, `z_index = 100`):
+  - Ghost rect + per-tile green (available) / red (occupied) highlight
+  - Live `(X, Y)` position label
+  - `_process` disabled by default; enabled in `begin()`, disabled in `end()`
+  - Each frame: temporarily `free_entity` + re-`occupy` at preview tile to keep grid state consistent for availability checks
+- Left-click confirms; right-click cancels
+- On confirm: `BOSSBridge.patch("/lean/line/:id/position", {x, y})` (or `/lean/inventory/:id/position`)
+- On cancel: grid restored to original entity position
 
 ### Focus
 
-- Toggle `focused` state locally → `BOSSBridge.patch("/lean/line/:id/focused", {focused})` → re-poll
-- On snapshot: any item not in the focused set (and not connected to a focused item) gets the `gray_out` shader applied
-- Connected items (subassembly, inventory supplying a focused line) remain full opacity — implement connection lookup in Layer 6; for now, gray everything not directly focused
+- Toggle `_focused` state locally; entity's border/fill color changes immediately
+- `focus_toggled(entity_id, focused)` signal emitted to `FactoryFloor`
+- `FactoryFloor._on_focus_toggled`: persists via `BOSSBridge.patch("…/focused", {focused})`; scans all entities for any `_focused == true`; applies `gray_out` shader to all non-focused entities via `set_grayed(true/false)`
+- Connected items (Layer 6): for now, gray everything not directly focused
 
 ### Lock
 
-- Toggle `locked` → `BOSSBridge.patch("/lean/line/:id/locked", {locked})` → re-poll
-- Locked: Move handle grayed out and non-interactive
+- Toggle `_locked` locally; Move button disabled immediately
+- `lock_toggled(entity_id, locked)` signal emitted to `FactoryFloor`
+- `FactoryFloor._on_lock_toggled`: persists via `BOSSBridge.patch("…/locked", {locked})`
 
-### Zoom
+### Zoom slider
 
-- Zoom slider in top-right CanvasLayer (fixed position)
-- 4 discrete steps; label shows current level (100%, 75%, 50%, 25%)
-- Updates `Camera2D.zoom`
+- `ZoomSlider` is a `CanvasLayer` (layer 15), anchored top-right, 4 toggle buttons
+- On press: emits `zoom_changed(index)` → `FactoryFloor.set_zoom(index)`
+- After clamping: slider synced back with `set_index(_zoom_index)` to reflect actual applied zoom
 
 ### Verification checklist
 
-- [ ] Hover → controls appear; mouse-exit → controls hide
+- [x] Hover → controls appear; mouse-exit → controls hide
 - [ ] Move line to valid position → confirmed on re-poll
-- [ ] Move to occupied position → reverts
-- [ ] Lock prevents move
+- [ ] Move to occupied position → reverts (right-click cancel)
+- [ ] Lock prevents move (Move button disabled)
 - [ ] Focus grays unfocused items via shader
-- [ ] Zoom slider changes Camera2D zoom
-- [ ] Camera clamps to floor bounds at all zoom levels
+- [x] Zoom slider changes Camera2D zoom
+- [x] Camera clamps to floor bounds at all zoom levels
 
 ---
 

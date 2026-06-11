@@ -36,15 +36,16 @@ var _zoom_slider: CanvasLayer = null
 # Grid manager — owns tile occupation state.
 var grid: GridManager = GridManager.new()
 
-# BOSS JS bridge references.
-var _delegate: JavaScriptObject
-var _send_callback: JavaScriptObject
+# BOSS delegate — WebBOSSDelegate in browser, DummyBOSSDelegate in editor.
+var _boss: BOSSDelegate
 
 @onready var _camera:      Camera2D    = $Camera2D
 @onready var _error_modal: CanvasLayer  = $ErrorModal/ErrorModal
 @onready var _bg:          Node2D      = $Background
 @onready var _panel:       CanvasLayer = $OperationPanel
 
+func is_web() -> bool:
+	return OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge")
 
 func _ready() -> void:
 	BOSSBridge.snapshot_updated.connect(_on_snapshot_updated)
@@ -65,32 +66,21 @@ func _ready() -> void:
 	add_child(_zoom_slider)
 	_zoom_slider.zoom_changed.connect(_on_zoom_slider_changed)
 
-	if Engine.has_singleton("JavaScriptBridge"):
-		var window := JavaScriptBridge.get_interface("window")
-		if window and window.boss:
-			_delegate = window.boss
-			_send_callback = JavaScriptBridge.create_callback(_on_boss_send)
-			_delegate.send = _send_callback
-			_delegate.ready()
-		else:
-			push_warning("FactoryFloor: window.boss not set — running outside BOSS?")
+	if is_web():
+		_boss = WebBOSSDelegate.new()
+	else:
+		_boss = DummyBOSSDelegate.new()
+	_boss.ready(_on_boss_command)
 
 
 # ---------------------------------------------------------------------------
-# BOSS bridge
+# BOSS delegate command handler
 # ---------------------------------------------------------------------------
 
-func _on_boss_send(args: Array) -> void:
-	if args.is_empty():
-		return
-	var cmd: JavaScriptObject = args[0]
-	var c_name: String = str(cmd["name"])
+func _on_boss_command(c_name: String, data: Dictionary) -> void:
 	match c_name:
 		"configure":
-			var data: JavaScriptObject = cmd["data"]
-			var factory_id: int = int(str(data["factoryId"]))
-			var base_url: String = str(data["baseUrl"])
-			BOSSBridge.configure(factory_id, base_url)
+			BOSSBridge.configure(data.get("factoryId", 0), data.get("baseUrl", ""))
 		_:
 			push_warning("FactoryFloor: unknown BOSS command '%s'" % c_name)
 
@@ -161,39 +151,24 @@ func _on_floor_grew(_new_w: int, _new_h: int) -> void:
 # ---------------------------------------------------------------------------
 
 func _on_create_line() -> void:
-	if not _delegate:
-		_error_modal.show_error("Not connected", "BOSS controller is not available.")
-		return
 	# Tell BOSS to open the CreateFactoryModel window for a new line.
-	_send_open_window("CreateFactoryModel", ["line", BOSSBridge.factory_id])
+	_boss.receive("open-window", {
+		"controller": "CreateFactoryModel",
+		"parameters": ["line", BOSSBridge.factory_id],
+	})
 	# Temporarily add a placeholder line to the floor while BOSS processes the request.
 	# This will be replaced when the snapshot is next updated.
 	_add_placeholder_line()
 
 
 func _on_create_inventory() -> void:
-	if not _delegate:
-		_error_modal.show_error("Not connected", "BOSS controller is not available.")
-		return
 	# Tell BOSS to open the CreateFactoryModel window for a new inventory.
-	_send_open_window("CreateFactoryModel", ["inventory", BOSSBridge.factory_id])
+	_boss.receive("open-window", {
+		"controller": "CreateFactoryModel",
+		"parameters": ["inventory", BOSSBridge.factory_id],
+	})
 	# Temporarily add a placeholder inventory to the floor.
 	_add_placeholder_inventory()
-
-
-## Send an open-window event to the BOSS GodotController.
-## BOSS will load the named controller and pass parameters to its configure().
-func _send_open_window(controller_name: String, parameters: Array) -> void:
-	var params_obj: JavaScriptObject = JavaScriptBridge.create_object("Array")
-	for i in parameters.size():
-		params_obj[str(i)] = parameters[i]
-	var data_obj: JavaScriptObject = JavaScriptBridge.create_object("Object")
-	data_obj["controller"] = controller_name
-	data_obj["parameters"] = params_obj
-	var ev: JavaScriptObject = JavaScriptBridge.create_object("Object")
-	ev["name"] = "open-window"
-	ev["data"] = data_obj
-	_delegate.receive(ev)
 
 
 ## Add a temporary placeholder Line at the first available grid position.
