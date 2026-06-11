@@ -11,6 +11,7 @@
 extends Node2D
 
 const TILE_SIZE := 64
+const PAN_SPEED  := 2.0   # pan multiplier — increase for faster scrolling
 const ZOOM_LEVELS: Array[Vector2] = [
 	Vector2(1.0,  1.0),
 	Vector2(0.75, 0.75),
@@ -300,8 +301,18 @@ func zoom_out() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# Pan with middle mouse drag.
 	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
-		_camera.position -= event.relative / _camera.zoom
-		_save_viewport()
+		_pan(_camera.position - event.relative * PAN_SPEED / _camera.zoom)
+		return
+
+	# Two-finger trackpad / touchpad pan gesture.
+	if event is InputEventPanGesture:
+		_pan(_camera.position + event.delta * PAN_SPEED / _camera.zoom)
+		return
+
+	# Touch drag (single finger on touchscreen).
+	if event is InputEventScreenDrag and event.index == 0:
+		_pan(_camera.position - event.relative * PAN_SPEED / _camera.zoom)
+		return
 
 	# Zoom with scroll wheel.
 	if event is InputEventMouseButton:
@@ -318,6 +329,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 			_cancel_drag()
 			get_viewport().set_input_as_handled()
+
+
+## Move the camera to `target`, clamped to floor bounds, then persist.
+func _pan(target: Vector2) -> void:
+	var bounds := grid.bounds_world(TILE_SIZE)
+	var half_view := get_viewport_rect().size * 0.5 / _camera.zoom
+	_camera.position = target.clamp(
+		bounds.position + half_view,
+		bounds.end - half_view
+	)
+	_save_viewport()
 
 
 # ---------------------------------------------------------------------------
