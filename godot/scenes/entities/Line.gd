@@ -51,7 +51,7 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		var local := to_local(get_viewport().get_mouse_position())
+		var local := to_local(get_global_mouse_position())
 		var inside := Rect2(0, 0, LINE_W, LINE_H).has_point(local)
 		if inside != _hovered:
 			_set_hovered(inside)

@@ -70,7 +70,7 @@ func _ready() -> void:
 		_boss = WebBOSSDelegate.new()
 	else:
 		_boss = DummyBOSSDelegate.new()
-	_boss.ready(_on_boss_command)
+	await _boss.ready(_on_boss_command)
 
 
 # ---------------------------------------------------------------------------
@@ -94,9 +94,11 @@ func _on_snapshot_updated(snapshot: Dictionary) -> void:
 
 
 func _render_entities(snapshot: Dictionary) -> void:
-	# Clear all existing entity children.
+	# Clear all existing entity children, but preserve the drag overlay.
 	var entities := $Entities
 	for child in entities.get_children():
+		if child == _drag_overlay:
+			continue
 		child.queue_free()
 
 	# Reset grid occupation.

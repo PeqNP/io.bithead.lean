@@ -9,6 +9,7 @@
 ##   error(message)             - Emitted on any HTTP error; FactoryFloor shows ErrorModal.
 ##
 ## Usage:
+##   await BOSSBridge.sign_in()                        # debug only — sets _access_token
 ##   BOSSBridge.configure(factory_id, base_url)
 ##   await BOSSBridge.post("/lean/line", body)
 ##   await BOSSBridge.patch("/lean/line/1/locked", body)
@@ -20,6 +21,7 @@ signal error(message: String)
 
 var _factory_id: int = -1
 var _base_url: String = ""
+var _access_token: String = ""   # set by sign_in(); injected as Cookie header
 
 ## Read-only access to the current factory id.
 var factory_id: int:
@@ -55,6 +57,42 @@ func patch(path: String, body: Dictionary) -> Dictionary:
 	return await _request("PATCH", path, body)
 
 
+## Sign in as the super user via the debug route.
+## Stores the returned accessToken for use on all subsequent requests.
+## Only call this from DummyBOSSDelegate when running outside the browser.
+func sign_in() -> void:
+	if _base_url.is_empty():
+		push_warning("BOSSBridge.sign_in called before base_url is set")
+		return
+	var url := _base_url + "/debug/sign-in"
+	var http := HTTPRequest.new()
+	add_child(http)
+	var err := http.request(url, PackedStringArray(), HTTPClient.METHOD_GET, "")
+	if err != OK:
+		push_error("BOSSBridge.sign_in: request failed (err %d)" % err)
+		http.queue_free()
+		return
+	var result: Array = await http.request_completed
+	http.queue_free()
+	var http_code: int = result[1]
+	if http_code < 200 or http_code >= 300:
+		push_error("BOSSBridge.sign_in: server returned %d" % http_code)
+		return
+	# Parse Set-Cookie header for the accessToken value.
+	var resp_headers: PackedStringArray = result[2]
+	for header in resp_headers:
+		var h: String = header
+		if h.to_lower().begins_with("set-cookie:"):
+			var cookie_str := h.substr(11).strip_edges()
+			for part in cookie_str.split(";"):
+				var kv := part.strip_edges()
+				if kv.begins_with("accessToken="):
+					_access_token = kv.substr(12)
+					print("BOSSBridge.sign_in: session token acquired")
+					return
+	push_warning("BOSSBridge.sign_in: accessToken not found in Set-Cookie header")
+
+
 # ---------------------------------------------------------------------------
 # Internal
 # ---------------------------------------------------------------------------
@@ -67,6 +105,8 @@ func _request(method: String, path: String, body: Dictionary) -> Dictionary:
 
 	var url := _base_url + path
 	var headers := PackedStringArray(["Content-Type: application/json"])
+	if not _access_token.is_empty():
+		headers.append("Cookie: accessToken=%s" % _access_token)
 	var body_string := JSON.stringify(body) if not body.is_empty() else ""
 
 	var http := HTTPRequest.new()
