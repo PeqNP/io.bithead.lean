@@ -19,6 +19,7 @@ var _tile_w: int = 0
 var _tile_h: int = 0
 var _exclude_id: int = 0   # id of entity being moved (treated as available)
 var _drag_offset: Vector2 = Vector2.ZERO   # mouse-to-entity-top-left offset at drag start
+var _original_tile: Vector2i = Vector2i.ZERO  # entity's tile position when Move was pressed
 var _snap_tile: Vector2i = Vector2i.ZERO
 var _valid: bool = false
 
@@ -46,6 +47,7 @@ func begin(grid: GridManager, tile_w: int, tile_h: int, exclude_id: int,
 	# Clamp offset so it stays within entity bounds.
 	_drag_offset.x = clamp(_drag_offset.x, 0.0, tile_w * TILE_SIZE - 1.0)
 	_drag_offset.y = clamp(_drag_offset.y, 0.0, tile_h * TILE_SIZE - 1.0)
+	_original_tile = Vector2i(int(entity_pos.x) / TILE_SIZE, int(entity_pos.y) / TILE_SIZE)
 	show()
 	set_process(true)
 
@@ -68,13 +70,17 @@ func _process(_delta: float) -> void:
 	_snap_tile.x = max(0, _snap_tile.x)
 	_snap_tile.y = max(0, _snap_tile.y)
 
-	# Temporarily free dragged entity to check availability at new tile, then re-occupy.
-	# This keeps grid state consistent: entity always occupies exactly one position.
+	# Temporarily free dragged entity to check availability at new tile.
+	# If valid: re-occupy at the preview tile so other entities' availability
+	# checks remain correct next frame.
+	# If invalid: re-occupy at the original tile so we never overwrite another
+	# entity's grid entries (GridManager.occupy silently overwrites).
 	_grid.free_entity(_exclude_id)
 	_valid = _grid.is_available(_snap_tile.x, _snap_tile.y, _tile_w, _tile_h)
-	# Re-occupy at the preview tile (not the entity's real position — that is updated
-	# only on confirm). This means `is_available` results for other entities are correct.
-	_grid.occupy(_snap_tile.x, _snap_tile.y, _tile_w, _tile_h, _exclude_id)
+	if _valid:
+		_grid.occupy(_snap_tile.x, _snap_tile.y, _tile_w, _tile_h, _exclude_id)
+	else:
+		_grid.occupy(_original_tile.x, _original_tile.y, _tile_w, _tile_h, _exclude_id)
 
 	_pos_label.text = "(%d, %d)" % [_snap_tile.x, _snap_tile.y]
 	_pos_label.position = Vector2(_snap_tile.x * TILE_SIZE,

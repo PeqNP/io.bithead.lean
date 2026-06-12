@@ -517,7 +517,7 @@ func _render_belts() -> void:
 			if inv_raw != null:
 				var inv_node = inv_nodes.get(int(inv_raw))
 				if inv_node != null:
-					Conveyor.draw_animated(
+					Conveyor.draw_routed(
 						inv_node.get_center_right_world(),
 						line_node.get_station_input_world(i),
 						_belt_layer,
@@ -530,14 +530,14 @@ func _render_belts() -> void:
 				var sub_node = line_nodes.get(int(sub_raw))
 				if sub_node != null:
 					# Forward: station top → sub-line first intake.
-					Conveyor.draw_animated(
+					Conveyor.draw_routed(
 						line_node.get_station_top_world(i),
 						sub_node.get_first_intake_world(),
 						_belt_layer,
 						Color(0.65, 0.2, 0.9, 0.9)   # purple
 					)
 					# Return: sub-line output → station top.
-					Conveyor.draw_animated(
+					Conveyor.draw_routed(
 						sub_node.get_output_world(),
 						line_node.get_station_top_world(i),
 						_belt_layer,
