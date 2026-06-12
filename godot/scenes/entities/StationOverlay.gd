@@ -1,10 +1,7 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## StationOverlay — scrollable panel that slides below a Station card.
-##
-## Layer 5: shows Work Units list or Operations list for one station at a time.
 ## Line.gd creates one instance, moves it to the active station, and calls show_*/hide.
-##
 ## Call show_work_units(station_data) or show_operations(station_data) to populate.
 ## Call hide_overlay() to collapse.
 
@@ -27,7 +24,7 @@ var _station_data: Dictionary = {}
 var _scroll_offset: int = 0
 var _overlay_w: float = OVERLAY_W
 var _rows: Array = []            # cached row data for scroll
-var _compact: bool = false       # Layer 7: true at zoom ≤ 50%
+var _compact: bool = false       # true at zoom ≤ 50%
 
 @onready var _content: Node2D = $Content
 @onready var _up_btn:   Button = $UpButton
@@ -45,7 +42,6 @@ func set_width(w: float) -> void:
 	_overlay_w = w
 
 
-## Layer 7: zoom-dependent detail. At zi >= 2 (50% or less) use compact mode.
 func set_zoom_index(zi: int) -> void:
 	var was_compact := _compact
 	_compact = (zi >= 2)

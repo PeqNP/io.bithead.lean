@@ -1,17 +1,13 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## FactoryFloor — main scene root.
-##
-## Layer 0: BOSS JS bridge, camera, error modal.
-## Layer 1: Render Line and Inventory entities from snapshot.
-## Layer 2: OperationPanel — Create Line / Create Inventory flows.
-## Layer 3: Hover controls, drag-to-move, focus/gray-out, lock, zoom slider.
-## Layer 6: Cross-entity belts (Inventory→Station amber, subassembly purple), focus propagation.
 
 extends Node2D
 
 const TILE_SIZE := 64
-const PAN_SPEED  := 2.0   # pan multiplier — increase for faster scrolling
+const PAN_SPEED  := 4.0   # pan multiplier — increase for faster scrolling
+## Tiles of empty space kept beyond the furthest entity (and beyond the drag ghost during a move).
+const FLOOR_EDGE_BUFFER := 5
 const ZOOM_LEVELS: Array[Vector2] = [
 	Vector2(1.0,  1.0),
 	Vector2(0.75, 0.75),
@@ -26,7 +22,6 @@ const ZOOM_SLIDER_SCENE  := preload("res://scenes/common/ZoomSlider.tscn")
 
 var _zoom_index: int = 0
 
-# Layer 3 state.
 var _drag_overlay: Node2D = null
 var _drag_entity: Node2D = null       # entity currently being dragged
 var _drag_entity_id: int = 0
@@ -35,16 +30,10 @@ var _drag_tile_h: int = 0
 var _focus_active: bool = false       # true when any entity is focused
 var _zoom_slider: CanvasLayer = null
 
-# Layer 6: last received snapshot (used by belt rendering and focus propagation).
 var _snapshot: Dictionary = {}
-# Layer 6: intake-queue-id → line Node2D, rebuilt on every _render_belts() call.
 var _iq_to_line: Dictionary = {}
 
-# Layer 7: live map of entity_id → Node2D for O(1) lookup and reconciliation.
 var _entity_nodes: Dictionary = {}
-
-# Grid manager — owns tile occupation state.
-var grid: GridManager = GridManager.new()
 
 # BOSS delegate — WebBOSSDelegate in browser, DummyBOSSDelegate in editor.
 var _boss: BOSSDelegate
@@ -58,21 +47,32 @@ var _boss: BOSSDelegate
 func is_web() -> bool:
 	return OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge")
 
+func _process(_delta: float) -> void:
+	if _drag_entity == null:
+		return
+	# Expand floor bounds live while dragging so the camera and background grow
+	# as the ghost moves toward or past the current edge.
+	var bounds := _compute_floor_bounds()
+	var new_w := ceili(bounds.size.x / float(TILE_SIZE))
+	var new_h := ceili(bounds.size.y / float(TILE_SIZE))
+	if new_w != _bg.floor_width_tiles or new_h != _bg.floor_height_tiles:
+		_bg.floor_width_tiles  = new_w
+		_bg.floor_height_tiles = new_h
+		_update_camera_limits()
+		_bg.queue_redraw()
+
 func _ready() -> void:
 	BOSSBridge.snapshot_updated.connect(_on_snapshot_updated)
 	BOSSBridge.error.connect(_on_boss_error)
-	grid.floor_grew.connect(_on_floor_grew)
 
 	_update_camera_limits()
 
 	_panel.create_line_pressed.connect(_on_create_line)
 	_panel.create_inventory_pressed.connect(_on_create_inventory)
 
-	# Layer 3: drag overlay (added to Entities so it tracks world space).
 	_drag_overlay = DRAG_OVERLAY_SCENE.instantiate()
 	$Entities.add_child(_drag_overlay)
 
-	# Layer 3: zoom slider fixed top-right.
 	_zoom_slider = ZOOM_SLIDER_SCENE.instantiate()
 	add_child(_zoom_slider)
 	_zoom_slider.zoom_changed.connect(_on_zoom_slider_changed)
@@ -129,7 +129,6 @@ func _render_entities(snapshot: Dictionary) -> void:
 		if not incoming.has(eid):
 			stale.append(eid)
 	for eid in stale:
-		grid.free_entity(eid)
 		_entity_nodes[eid].queue_free()
 		_entity_nodes.erase(eid)
 
@@ -144,15 +143,9 @@ func _render_entities(snapshot: Dictionary) -> void:
 		var gy: int = c_data.get("gridY", 0)
 
 		if _entity_nodes.has(eid):
-			# Update existing — re-occupy grid if position OR tile width changed.
 			var node: Node2D = _entity_nodes[eid]
-			var old_x := int(node.position.x) / TILE_SIZE
-			var old_y := int(node.position.y) / TILE_SIZE
-			var old_tw: int = node.get_meta("tile_w", tw)
-			if old_x != gx or old_y != gy or old_tw != tw:
-				grid.free_entity(eid)
-				grid.occupy(gx, gy, tw, th, eid)
-				node.set_meta("tile_w", tw)
+			node.set_meta("tile_w", tw)
+			node.set_meta("tile_h", th)
 			node.update(c_data)
 		else:
 			# Create new node.
@@ -166,12 +159,12 @@ func _render_entities(snapshot: Dictionary) -> void:
 			node.set_zoom_index(_zoom_index)
 			node.set_meta("is_line", c_is_line)
 			_wire_entity_signals(node, tw, th)
-			grid.occupy(gx, gy, tw, th, eid)
 			_entity_nodes[eid] = node
 
 	_update_camera_limits()
-	_bg.floor_width_tiles  = grid.width_tiles
-	_bg.floor_height_tiles = grid.height_tiles
+	var bg_bounds := _compute_floor_bounds()
+	_bg.floor_width_tiles  = ceili(bg_bounds.size.x / float(TILE_SIZE))
+	_bg.floor_height_tiles = ceili(bg_bounds.size.y / float(TILE_SIZE))
 	_bg.queue_redraw()
 	_render_belts()
 
@@ -184,10 +177,6 @@ func _on_floor_grew(_new_w: int, _new_h: int) -> void:
 	_update_camera_limits()
 	_bg.queue_redraw()
 
-
-# ---------------------------------------------------------------------------
-# Layer 2: Create flows
-# ---------------------------------------------------------------------------
 
 func _on_create_line() -> void:
 	# Tell BOSS to open the CreateFactoryModel window for a new line.
@@ -215,13 +204,15 @@ func _on_create_inventory() -> void:
 var _next_placeholder_id: int = -1
 
 func _add_placeholder_line() -> void:
-	var pos: Vector2i = grid.get_first_available(8, 3)   # 8 = min tiles with 0 stations
-	if pos == Vector2i(-1, -1):
+	var px_pos := _first_available_pos(8.0 * TILE_SIZE, 3.0 * TILE_SIZE)
+	if px_pos == Vector2(-1.0, -1.0):
 		return
+	var tile_x := int(px_pos.x) / TILE_SIZE
+	var tile_y := int(px_pos.y) / TILE_SIZE
 	var data := {
 		"id": _next_placeholder_id,
-		"gridX": pos.x,
-		"gridY": pos.y,
+		"gridX": tile_x,
+		"gridY": tile_y,
 		"name": "New Line",
 		"locked": false,
 		"hasOutput": true,
@@ -237,19 +228,20 @@ func _add_placeholder_line() -> void:
 	node.set_zoom_index(_zoom_index)
 	node.set_meta("is_line", true)
 	_wire_entity_signals(node, 8, 3)
-	grid.occupy(pos.x, pos.y, 8, 3, data["id"])
 	_entity_nodes[data["id"]] = node
-	_scroll_camera_to_tile(pos)
+	_scroll_camera_to_tile(Vector2i(tile_x, tile_y))
 
 
 func _add_placeholder_inventory() -> void:
-	var pos: Vector2i = grid.get_first_available(2, 2)
-	if pos == Vector2i(-1, -1):
+	var px_pos := _first_available_pos(2.0 * TILE_SIZE, 2.0 * TILE_SIZE)
+	if px_pos == Vector2(-1.0, -1.0):
 		return
+	var tile_x := int(px_pos.x) / TILE_SIZE
+	var tile_y := int(px_pos.y) / TILE_SIZE
 	var data := {
 		"id": _next_placeholder_id,
-		"gridX": pos.x,
-		"gridY": pos.y,
+		"gridX": tile_x,
+		"gridY": tile_y,
 		"name": "New Inventory",
 		"locked": false,
 		"health": 0
@@ -261,9 +253,8 @@ func _add_placeholder_inventory() -> void:
 	node.set_zoom_index(_zoom_index)
 	node.set_meta("is_line", false)
 	_wire_entity_signals(node, 2, 2)
-	grid.occupy(pos.x, pos.y, 2, 2, data["id"])
 	_entity_nodes[data["id"]] = node
-	_scroll_camera_to_tile(pos)
+	_scroll_camera_to_tile(Vector2i(tile_x, tile_y))
 
 
 ## Smoothly move the camera so the given tile position is visible.
@@ -282,7 +273,7 @@ func _scroll_camera_to_tile(tile: Vector2i) -> void:
 # ---------------------------------------------------------------------------
 
 func _update_camera_limits() -> void:
-	var bounds: Rect2 = grid.bounds_world(TILE_SIZE)
+	var bounds: Rect2 = _compute_floor_bounds()
 	_camera.limit_left   = int(bounds.position.x)
 	_camera.limit_top    = int(bounds.position.y)
 	_camera.limit_right  = int(bounds.end.x)
@@ -293,7 +284,7 @@ func set_zoom(index: int) -> void:
 	var clamped_index: int = clamp(index, 0, ZOOM_LEVELS.size() - 1)
 	# Do not zoom out past the point where the floor no longer fills the viewport.
 	var viewport_size := get_viewport_rect().size
-	var bounds := grid.bounds_world(TILE_SIZE)
+	var bounds := _compute_floor_bounds()
 	while clamped_index < ZOOM_LEVELS.size() - 1:
 		var z := ZOOM_LEVELS[clamped_index]
 		if bounds.size.x * z.x >= viewport_size.x and bounds.size.y * z.y >= viewport_size.y:
@@ -311,6 +302,19 @@ func zoom_in() -> void:
 
 func zoom_out() -> void:
 	set_zoom(_zoom_index + 1)
+
+
+func _input(event: InputEvent) -> void:
+	# Confirm or cancel drag on left/right click.
+	# Handled in _input (before GUI) so the input blocker in DragOverlay
+	# doesn't swallow the placement click.
+	if _drag_entity and event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			_confirm_drag()
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			_cancel_drag()
+			get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -339,7 +343,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			zoom_out()
 
-	# Confirm or cancel drag on left/right click.
+	# Confirm or cancel drag — now handled in _input above; kept as dead-code guard.
 	if _drag_entity and event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			_confirm_drag()
@@ -351,7 +355,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## Move the camera to `target`, clamped to floor bounds, then persist.
 func _pan(target: Vector2) -> void:
-	var bounds := grid.bounds_world(TILE_SIZE)
+	var bounds := _compute_floor_bounds()
 	var half_view := get_viewport_rect().size * 0.5 / _camera.zoom
 	_camera.position = target.clamp(
 		bounds.position + half_view,
@@ -359,10 +363,6 @@ func _pan(target: Vector2) -> void:
 	)
 	_save_viewport()
 
-
-# ---------------------------------------------------------------------------
-# Layer 3: entity signal wiring
-# ---------------------------------------------------------------------------
 
 func _wire_entity_signals(entity: Node2D, tile_w: int, tile_h: int) -> void:
 	# Store tile dimensions on the entity for use during move.
@@ -373,10 +373,6 @@ func _wire_entity_signals(entity: Node2D, tile_w: int, tile_h: int) -> void:
 	entity.lock_toggled.connect(_on_lock_toggled)
 
 
-# ---------------------------------------------------------------------------
-# Layer 3: drag-to-move
-# ---------------------------------------------------------------------------
-
 func _on_move_requested(entity: Node2D, tile_w: int, tile_h: int) -> void:
 	if _drag_entity:
 		return   # already dragging
@@ -384,7 +380,11 @@ func _on_move_requested(entity: Node2D, tile_w: int, tile_h: int) -> void:
 	_drag_entity_id = entity._entity_id
 	_drag_tile_w = tile_w
 	_drag_tile_h = tile_h
-	_drag_overlay.begin(grid, tile_w, tile_h, _drag_entity_id, entity.position)
+	# Pass the entity's actual pixel size so the ghost exactly matches the visual box.
+	var px_size := Vector2.ZERO
+	if entity.get_meta("is_line", false):
+		px_size = Vector2(entity._line_w, entity._line_h)
+	_drag_overlay.begin(tile_w, tile_h, entity.get_area_rid(), entity.position, px_size)
 	_panel.set_busy(true)
 
 
@@ -393,9 +393,7 @@ func _confirm_drag() -> void:
 	if tile == Vector2i(-1, -1):
 		_cancel_drag()
 		return
-	# Update grid and entity position.
-	grid.free_entity(_drag_entity_id)
-	grid.occupy(tile.x, tile.y, _drag_tile_w, _drag_tile_h, _drag_entity_id)
+	# Move entity to the confirmed position — Area2D moves with it automatically.
 	_drag_entity.position = Vector2(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
 
 	# Persist via BOSS.
@@ -409,28 +407,19 @@ func _confirm_drag() -> void:
 	_drag_entity = null
 	_panel.set_busy(false)
 	_update_camera_limits()
-	_bg.floor_width_tiles  = grid.width_tiles
-	_bg.floor_height_tiles = grid.height_tiles
+	var bg_bounds := _compute_floor_bounds()
+	_bg.floor_width_tiles  = ceili(bg_bounds.size.x / float(TILE_SIZE))
+	_bg.floor_height_tiles = ceili(bg_bounds.size.y / float(TILE_SIZE))
 	_bg.queue_redraw()
 	_render_belts()
 
 
 func _cancel_drag() -> void:
 	_drag_overlay.end()
-	# Restore grid occupation to original entity position.
-	var orig_tile := Vector2i(
-		int(_drag_entity.position.x) / TILE_SIZE,
-		int(_drag_entity.position.y) / TILE_SIZE
-	)
-	grid.free_entity(_drag_entity_id)
-	grid.occupy(orig_tile.x, orig_tile.y, _drag_tile_w, _drag_tile_h, _drag_entity_id)
+	# Entity position is unchanged — Area2D is already at the correct position.
 	_drag_entity = null
 	_panel.set_busy(false)
 
-
-# ---------------------------------------------------------------------------
-# Layer 3: focus / gray-out
-# ---------------------------------------------------------------------------
 
 func _on_focus_toggled(entity_id: int, focused: bool) -> void:
 	# Persist.
@@ -457,7 +446,7 @@ func _on_focus_toggled(entity_id: int, focused: bool) -> void:
 
 func _apply_focus_shader() -> void:
 	# Build the set of entity IDs that should stay full opacity when focus is active.
-	# A focused entity keeps itself and all entities it connects to (Layer 6).
+	# A focused entity keeps itself and all entities it connects to.
 	var visible_ids: Dictionary = {}
 	if _focus_active:
 		for child in $Entities.get_children():
@@ -495,10 +484,6 @@ func _collect_connected_ids(entity_id: int, result: Dictionary) -> void:
 			if inv_id == entity_id or sub_id == entity_id:
 				result[c_line_id] = true
 
-
-# ---------------------------------------------------------------------------
-# Layer 6: cross-entity belt rendering
-# ---------------------------------------------------------------------------
 
 ## Rebuild all cross-entity conveyor belts from the last snapshot.
 ## Amber: Inventory → Station. Purple: Station ↔ sub-assembly Line.
@@ -596,10 +581,6 @@ func _render_belts() -> void:
 					)
 
 
-# ---------------------------------------------------------------------------
-# Layer 3: lock
-# ---------------------------------------------------------------------------
-
 func _on_lock_toggled(entity_id: int, locked: bool) -> void:
 	var entity := _find_entity(entity_id)
 	if entity == null:
@@ -609,10 +590,6 @@ func _on_lock_toggled(entity_id: int, locked: bool) -> void:
 		else "/lean/inventory/%d/locked" % entity_id
 	BOSSBridge.patch(path, {"locked": locked})
 
-
-# ---------------------------------------------------------------------------
-# Layer 3: zoom slider
-# ---------------------------------------------------------------------------
 
 func _on_zoom_slider_changed(index: int) -> void:
 	set_zoom(index)
@@ -628,9 +605,50 @@ func _find_entity(entity_id: int) -> Node2D:
 	return _entity_nodes.get(entity_id)
 
 
-# ---------------------------------------------------------------------------
-# Layer 7: zoom notification + viewport persistence
-# ---------------------------------------------------------------------------
+## Compute the world-space bounding rect of all entities plus FLOOR_EDGE_BUFFER.
+## Used for camera limits and background grid dimensions.
+## When a drag is active, also accounts for the ghost position.
+func _compute_floor_bounds() -> Rect2:
+	var buffer := FLOOR_EDGE_BUFFER * TILE_SIZE
+	var max_x := 20.0 * TILE_SIZE
+	var max_y := 20.0 * TILE_SIZE
+	for child in $Entities.get_children():
+		if child == _drag_overlay:
+			continue
+		if child.get_meta("is_line", false):
+			max_x = max(max_x, child.position.x + float(child._line_w))
+			max_y = max(max_y, child.position.y + float(child._line_h))
+		elif child.has_meta("tile_w"):
+			max_x = max(max_x, child.position.x + float(child.get_meta("tile_w", 2) * TILE_SIZE))
+			max_y = max(max_y, child.position.y + float(child.get_meta("tile_h", 2) * TILE_SIZE))
+	# If a drag is in progress, include the ghost's projected far edge.
+	if _drag_overlay != null and _drag_overlay.visible:
+		var ghost_snap: Vector2i = _drag_overlay.get_snap_tile()
+		var ghost_px  : Vector2  = _drag_overlay.get_ghost_pixel_size()
+		max_x = max(max_x, ghost_snap.x * TILE_SIZE + ghost_px.x)
+		max_y = max(max_y, ghost_snap.y * TILE_SIZE + ghost_px.y)
+	return Rect2(0, 0, max_x + buffer, max_y + buffer)
+
+
+## Find the first tile-aligned world-space position where (px_w × px_h) fits
+## without overlapping any entity Area2D. Scans up to a 20×20-tile area.
+## Returns Vector2(-1, -1) if no free spot found.
+func _first_available_pos(px_w: float, px_h: float) -> Vector2:
+	var shape := RectangleShape2D.new()
+	shape.size = Vector2(px_w, px_h)
+	var params := PhysicsShapeQueryParameters2D.new()
+	params.shape = shape
+	params.collision_mask = 1
+	params.collide_with_areas = true
+	params.collide_with_bodies = false
+	for ty in range(20):
+		for tx in range(20):
+			var pos := Vector2(tx * TILE_SIZE, ty * TILE_SIZE)
+			params.transform = Transform2D(0.0, pos + Vector2(px_w, px_h) * 0.5)
+			if get_world_2d().direct_space_state.intersect_shape(params, 1).is_empty():
+				return pos
+	return Vector2(-1.0, -1.0)
+
 
 func _notify_entities_zoom() -> void:
 	for child in $Entities.get_children():

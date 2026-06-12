@@ -48,13 +48,13 @@ static func format_eta(iso_string) -> String:
 	var day_names   := ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
 
 	var month: int = dict.get("month", 1)
-	var day: int   = dict.get("day", 1)
-	var hour: int  = dict.get("hour", 0)
+	var day: int = dict.get("day", 1)
+	var hour: int = dict.get("hour", 0)
 	var minute: int = dict.get("minute", 0)
 	var weekday: int = dict.get("weekday", 0)
 
-	var month_str   := month_names[clamp(month - 1, 0, 11)]
-	var weekday_str := day_names[clamp(weekday, 0, 6)]
+	var month_str: String = month_names[clamp(month - 1, 0, 11)]
+	var weekday_str: String = day_names[clamp(weekday, 0, 6)]
 	var ampm        := "a" if hour < 12 else "p"
 	var display_hour := hour % 12
 	if display_hour == 0:

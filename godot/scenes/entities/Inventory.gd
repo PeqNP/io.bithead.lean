@@ -1,10 +1,6 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## Renders a single Inventory node from a LeanFragment.FactoryFloor.Inventory snapshot.
-##
-## Layer 1: static rendering.
-## Layer 3: hover controls (Move, Focus, Lock), focus shader.
-## Layer 6: stock expand panel, get_center_right_world() for belt routing.
 
 extends Node2D
 
@@ -37,8 +33,10 @@ var _entity_id: int = 0
 var _focused: bool = false
 var _locked: bool = false
 var _hovered: bool = false
+# Placement collision — fixed 128×128 px.
+var _area: Area2D
+var _col_shape: RectangleShape2D
 
-# Layer 6: stock expand panel.
 var _stock_panel: Node2D = null
 var _stock_btn: Button = null
 var _stock_open: bool = false
@@ -51,8 +49,20 @@ var _stock_open: bool = false
 func _ready() -> void:
 	set_process_input(true)
 	queue_redraw()
+	# Build Area2D for pixel-accurate placement collision detection.
+	var col := CollisionShape2D.new()
+	_col_shape = RectangleShape2D.new()
+	_col_shape.size = Vector2(INV_W, INV_H)
+	col.shape = _col_shape
+	_area = Area2D.new()
+	_area.collision_layer = 1
+	_area.collision_mask  = 0
+	_area.monitoring      = false
+	_area.monitorable     = true
+	_area.position        = Vector2(INV_W / 2.0, INV_H / 2.0)
+	_area.add_child(col)
+	add_child(_area)
 
-	# Layer 6: stock expand panel below the card.
 	_stock_panel = STOCK_PANEL_SCENE.instantiate()
 	_stock_panel.position = Vector2(0, INV_H + 2)
 	_stock_panel.hide()
@@ -121,8 +131,13 @@ func set_zoom_index(zi: int) -> void:
 	_label.visible = (zi < 3)
 
 
+## Returns the physics RID of this Inventory's Area2D, used for DragOverlay placement queries.
+func get_area_rid() -> RID:
+	return _area.get_rid()
+
+
 ## World-space point at the center-right edge — used as the belt source for
-## Inventory→Station connections in Layer 6.
+## Inventory→Station connections.
 func get_center_right_world() -> Vector2:
 	return position + Vector2(INV_W, INV_H / 2.0)
 

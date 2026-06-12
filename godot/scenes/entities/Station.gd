@@ -1,10 +1,7 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## Renders a single Station card inside a Line's station zone.
-##
-## Layer 5: name, cycle time, Work Units / Operations toggle buttons.
 ## configure(data, index, card_x, card_y, card_w, card_h) must be called after instancing.
-##
 ## Overlay exclusivity is managed by Line.gd, which calls close_overlay() on all
 ## siblings before opening a new one.
 

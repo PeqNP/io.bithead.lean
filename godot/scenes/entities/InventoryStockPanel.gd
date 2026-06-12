@@ -1,10 +1,7 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## InventoryStockPanel — stock level table that slides out below an Inventory card.
-##
-## Layer 6: shows cycleStock, bufferStockLevel, safetyStockLevel, reorderPoint,
 ## estimatedReorderDate, and health color.
-##
 ## Created dynamically by Inventory._ready(); shown/hidden by the Stock toggle button.
 
 extends Node2D

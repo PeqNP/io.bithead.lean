@@ -1,11 +1,7 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## Draws conveyor belts between two local-space points.
-##
-## Layer 1: draw_static  — plain Line2D stub.
-## Layer 4: draw_animated — straight ChevronBelt (two waypoints).
 ##           draw_routed   — L-shaped ChevronBelt (three waypoints, horizontal-first).
-##
 ## Usage:
 ##   Conveyor.draw_static(from, to, parent_node)
 ##   Conveyor.draw_animated(from, to, parent_node, color)   # straight

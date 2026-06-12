@@ -1,8 +1,6 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## Renders the Hopper card inside a Line.
-##
-## Layer 4: shows work unit name + ETA + Start button when hopperWorkUnit present.
 ## configure(data, card_x, card_y, card_w, card_h) must be called after instancing.
 
 extends Node2D

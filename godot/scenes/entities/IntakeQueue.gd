@@ -1,8 +1,6 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## Renders a single IntakeQueue card inside a Line.
-##
-## Layer 4: name label, cycle time, mix ratio bar, color strip.
 ## configure(data, card_x, card_y, card_w, card_h) must be called after instancing.
 
 extends Node2D

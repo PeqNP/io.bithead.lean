@@ -1,8 +1,6 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## Renders a single work unit row inside a StationOverlay.
-##
-## Layer 5: name, assignee initials, eta, progress bar, Done button.
 
 extends Node2D
 

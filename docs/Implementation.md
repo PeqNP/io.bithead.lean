@@ -562,3 +562,7 @@ Layer 6 → verify → Layer 7
 ```
 
 Do not advance to the next layer until all verification checkboxes for the current layer are checked.
+
+## Implementation Principles
+
+- **Prefer built-in Godot node types** before building custom logic. Use `Area2D + CollisionShape2D` for collision/overlap detection, `PhysicsShapeQueryParameters2D` for placement queries, `CharacterBody2D`/`StaticBody2D` for physics bodies, `AnimationPlayer` for sequenced animations, etc. Only write custom code when no Godot built-in adequately covers the requirement.

@@ -1,11 +1,6 @@
 ## Copyright © 2026 Bithead LLC. All rights reserved.
 
 ## Renders a single production Line from a LeanFragment.FactoryFloor.Line snapshot.
-##
-## Layer 1: static rendering.
-## Layer 3: hover controls (Move, Focus, Lock), focus shader.
-## Layer 4: IntakeQueue cards, Hopper card, animated chevron conveyors.
-## Layer 5: Station cards, Work Units / Operations overlays, Add Station.
 
 extends Node2D
 
@@ -54,8 +49,10 @@ var _entity_id: int = 0
 var _focused: bool = false
 var _locked: bool = false
 var _hovered: bool = false
+# Placement collision — sized to exact pixel dimensions at configure time.
+var _area: Area2D
+var _col_shape: RectangleShape2D
 
-# Layer 5: overlay state (at most one overlay open per Line).
 var _active_overlay: Node2D = null   # the StationOverlay instance
 var _active_station_id: int = -1
 var _active_overlay_type: String = ""
@@ -69,6 +66,17 @@ var _active_overlay_type: String = ""
 func _ready() -> void:
 	set_process_input(true)
 	queue_redraw()
+	# Build Area2D for pixel-accurate placement collision detection.
+	var col := CollisionShape2D.new()
+	_col_shape = RectangleShape2D.new()
+	col.shape = _col_shape
+	_area = Area2D.new()
+	_area.collision_layer = 1
+	_area.collision_mask  = 0
+	_area.monitoring      = false
+	_area.monitorable     = true
+	_area.add_child(col)
+	add_child(_area)
 
 
 func _input(event: InputEvent) -> void:
@@ -87,6 +95,9 @@ func configure(data: Dictionary) -> void:
 
 	_compute_line_w()
 	_compute_line_h()
+	# Keep collision shape in sync with exact pixel dimensions.
+	_col_shape.size = Vector2(_line_w, _line_h)
+	_area.position  = Vector2(_line_w / 2.0, _line_h / 2.0)
 
 	position = Vector2(
 		data.get("gridX", 0) * TILE_SIZE,
@@ -119,12 +130,11 @@ func tile_w() -> int:
 func _compute_line_h() -> void:
 	var n: int = max(1, (_data.get("intakeQueues", []) as Array).size())
 	var card_h := 2 * TILE_SIZE
-	var raw := CONTENT_TOP + n * card_h + (n - 1) * SECTION_PAD + SECTION_PAD
-	_line_h = ceili(float(raw) / TILE_SIZE) * TILE_SIZE
+	_line_h = CONTENT_TOP + n * card_h + (n - 1) * SECTION_PAD + SECTION_PAD
 
-## How many tiles tall this Line currently is.
+## How many tiles tall this Line currently is (grid footprint, rounded up).
 func tile_h() -> int:
-	return _line_h / TILE_SIZE
+	return ceili(float(_line_h) / TILE_SIZE)
 
 
 func update(data: Dictionary) -> void:
@@ -216,10 +226,6 @@ func _on_lock_pressed(lock_btn: Button, move_btn: Button) -> void:
 	lock_toggled.emit(_entity_id, _locked)
 
 
-# ---------------------------------------------------------------------------
-# Sections — Layer 4: intake queue cards + hopper card
-# ---------------------------------------------------------------------------
-
 func _rebuild_sections() -> void:
 	for child in _sections.get_children():
 		child.queue_free()
@@ -262,13 +268,8 @@ func _rebuild_hopper(top: float, h: float) -> void:
 
 
 func _rebuild_station_placeholder(_top: float, _h: float) -> void:
-	# Replaced in Layer 5 — this stub kept to avoid breaking _rebuild_sections call order.
 	pass
 
-
-# ---------------------------------------------------------------------------
-# Sections — Layer 5: Station cards + overlay
-# ---------------------------------------------------------------------------
 
 func _rebuild_stations(top: float, h: float) -> void:
 	var stations: Array = _data.get("stations", [])
@@ -374,10 +375,6 @@ func _add_placeholder(parent: Node2D, x: float, y: float, w: float, h: float,
 	parent.add_child(lbl)
 
 
-# ---------------------------------------------------------------------------
-# Conveyors — Layer 4: animated chevron belts
-# ---------------------------------------------------------------------------
-
 func _rebuild_conveyors() -> void:
 	for child in _conveyors.get_children():
 		child.queue_free()
@@ -410,10 +407,6 @@ func _rebuild_conveyors() -> void:
 			_conveyors
 		)
 
-
-# ---------------------------------------------------------------------------
-# Layer 6: world-space connection points for belt routing
-# ---------------------------------------------------------------------------
 
 ## World-space left-edge center of station[index]. Used for Inventory→Station belts.
 func get_station_input_world(station_index: int) -> Vector2:
@@ -476,6 +469,11 @@ func get_output_world() -> Vector2:
 ## World-space bounding rect of this Line. Used by Conveyor routing to avoid drawing through the box.
 func get_bounds_world() -> Rect2:
 	return Rect2(position, Vector2(_line_w, _line_h))
+
+
+## Returns the physics RID of this Line's Area2D, used for DragOverlay placement queries.
+func get_area_rid() -> RID:
+	return _area.get_rid()
 
 
 ## Called by FactoryFloor when camera zoom index changes.
