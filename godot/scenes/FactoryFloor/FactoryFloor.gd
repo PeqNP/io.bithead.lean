@@ -119,9 +119,9 @@ func _render_entities(snapshot: Dictionary) -> void:
 		var n_iq: int = max(1, (line_data.get("intakeQueues", []) as Array).size())
 		var raw_h := 60 + n_iq * 128 + (n_iq - 1) * 4 + 4
 		var th: int = ceili(float(raw_h) / 64.0)
-		incoming[line_data.get("id", 0)] = {"data": line_data, "tw": tw, "th": th, "is_line": true}
+		incoming["L_%d" % line_data.get("id", 0)] = {"data": line_data, "tw": tw, "th": th, "is_line": true}
 	for inv_data: Dictionary in (snapshot.get("inventories", []) as Array):
-		incoming[inv_data.get("id", 0)] = {"data": inv_data, "tw": 2, "th": 2, "is_line": false}
+		incoming["I_%d" % inv_data.get("id", 0)] = {"data": inv_data, "tw": 2, "th": 2, "is_line": false}
 
 	# Remove entities no longer in the snapshot.
 	var stale: Array = []
@@ -600,7 +600,10 @@ func _on_zoom_slider_changed(index: int) -> void:
 # ---------------------------------------------------------------------------
 
 func _find_entity(entity_id: int) -> Node2D:
-	return _entity_nodes.get(entity_id)
+	var node = _entity_nodes.get("L_%d" % entity_id)
+	if node:
+		return node
+	return _entity_nodes.get("I_%d" % entity_id)
 
 
 ## Compute the world-space bounding rect of all entities plus FLOOR_EDGE_BUFFER.
