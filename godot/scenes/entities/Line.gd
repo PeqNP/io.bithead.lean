@@ -428,6 +428,39 @@ func get_station_top_world(station_index: int) -> Vector2:
 	return position + Vector2(card_x + float(STATION_W - SECTION_PAD) / 2.0, 0.0)
 
 
+## World-space top-center of the station card for station[index]. Used for intake-queue belt exit (top).
+func get_station_card_top_world(station_index: int) -> Vector2:
+	var card_x := float(INTAKE_W + HOPPER_W + SECTION_PAD + station_index * STATION_W)
+	var card_cx := card_x + float(STATION_W - SECTION_PAD) / 2.0
+	return position + Vector2(card_cx, float(CONTENT_TOP))
+
+
+## World-space bottom-center of the station card for station[index]. Used for intake-queue belt exit (bottom).
+func get_station_card_bottom_world(station_index: int) -> Vector2:
+	var card_x := float(INTAKE_W + HOPPER_W + SECTION_PAD + station_index * STATION_W)
+	var card_cx := card_x + float(STATION_W - SECTION_PAD) / 2.0
+	return position + Vector2(card_cx, float(CONTENT_TOP) + 2.0 * TILE_SIZE)
+
+
+## World-space left-center of the intake queue card identified by queue_id.
+## Returns position (line origin) as a fallback if the queue is not found.
+func get_intake_queue_left_world(queue_id: int) -> Vector2:
+	var intake_queues: Array = _data.get("intakeQueues", [])
+	var card_h := 2.0 * TILE_SIZE
+	for i in intake_queues.size():
+		if (intake_queues[i] as Dictionary).get("id", -1) == queue_id:
+			var center_y := float(CONTENT_TOP) + i * (card_h + SECTION_PAD) + card_h / 2.0
+			return position + Vector2(0.0, center_y)
+	return position   # fallback: queue not found on this line
+
+
+## World-space left-center of the first intake queue card. Used for connectsToLine belt routing.
+func get_first_intake_queue_left_world() -> Vector2:
+	var card_h := 2.0 * TILE_SIZE
+	var center_y := float(CONTENT_TOP) + card_h / 2.0
+	return position + Vector2(0.0, center_y)
+
+
 ## World-space left-edge center of the first intake queue. Subassembly return target.
 func get_first_intake_world() -> Vector2:
 	var mid_y := float(CONTENT_TOP) + TILE_SIZE   # center of 2-tile content row
@@ -438,6 +471,11 @@ func get_first_intake_world() -> Vector2:
 func get_output_world() -> Vector2:
 	var mid_y := float(CONTENT_TOP) + TILE_SIZE   # center of 2-tile content row
 	return position + Vector2(_line_w, mid_y)
+
+
+## World-space bounding rect of this Line. Used by Conveyor routing to avoid drawing through the box.
+func get_bounds_world() -> Rect2:
+	return Rect2(position, Vector2(_line_w, _line_h))
 
 
 ## Called by FactoryFloor when camera zoom index changes.

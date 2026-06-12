@@ -37,6 +37,8 @@ var _zoom_slider: CanvasLayer = null
 
 # Layer 6: last received snapshot (used by belt rendering and focus propagation).
 var _snapshot: Dictionary = {}
+# Layer 6: intake-queue-id → line Node2D, rebuilt on every _render_belts() call.
+var _iq_to_line: Dictionary = {}
 
 # Layer 7: live map of entity_id → Node2D for O(1) lookup and reconciliation.
 var _entity_nodes: Dictionary = {}
@@ -519,6 +521,15 @@ func _render_belts() -> void:
 		elif tile_w == 2:
 			inv_nodes[child._entity_id] = child
 
+	# Build intake-queue-id → line_node lookup for connectsToIntakeQueue belt routing.
+	_iq_to_line.clear()
+	for ld: Dictionary in (_snapshot.get("lines", []) as Array):
+		var ln = line_nodes.get(ld.get("id", 0))
+		if ln == null:
+			continue
+		for iq: Dictionary in (ld.get("intakeQueues", []) as Array):
+			_iq_to_line[iq.get("id", 0)] = ln
+
 	for line_data in _snapshot.get("lines", []):
 		var c_line_id: int = line_data.get("id", 0)
 		var line_node = line_nodes.get(c_line_id)
@@ -540,24 +551,48 @@ func _render_belts() -> void:
 						Color(1.0, 0.65, 0.1, 0.9)   # amber
 					)
 
-			# Sub-assembly belts (purple).
+			# Station → Line bidirectional belt (purple): station top/bottom → left-center of target line's first intake queue.
 			var sub_raw = st.get("connectsToLine")
 			if sub_raw != null:
 				var sub_node = line_nodes.get(int(sub_raw))
 				if sub_node != null:
-					# Forward: station top → sub-line first intake.
-					Conveyor.draw_routed(
-						line_node.get_station_top_world(i),
-						sub_node.get_first_intake_world(),
+					var station_world: Vector2
+					var sub_from_dir: Vector2
+					if sub_node.position.y < line_node.position.y:
+						station_world = line_node.get_station_card_top_world(i)
+						sub_from_dir = Vector2(0, -1)   # exit upward
+					else:
+						station_world = line_node.get_station_card_bottom_world(i)
+						sub_from_dir = Vector2(0, 1)    # exit downward
+					Conveyor.draw_routed_bidirectional(
+						station_world, sub_from_dir,
+						sub_node.get_first_intake_queue_left_world(), Vector2(-1, 0),
 						_belt_layer,
-						Color(0.65, 0.2, 0.9, 0.9)   # purple
+						Color(0.65, 0.2, 0.9, 0.9),   # purple
+						sub_node.get_bounds_world()
 					)
-					# Return: sub-line output → station top.
-					Conveyor.draw_routed(
-						sub_node.get_output_world(),
-						line_node.get_station_top_world(i),
+
+			# Station → IntakeQueue bidirectional belt (teal).
+			# Two side-by-side lanes: one flowing into the queue, one flowing back toward the station.
+			var iq_raw = st.get("connectsToIntakeQueue")
+			if iq_raw != null:
+				var iq_id: int = int(iq_raw)
+				var target_line = _iq_to_line.get(iq_id)
+				if target_line != null:
+					var station_world: Vector2
+					var iq_from_dir: Vector2
+					if target_line.position.y < line_node.position.y:
+						station_world = line_node.get_station_card_top_world(i)
+						iq_from_dir = Vector2(0, -1)   # exit upward
+					else:
+						station_world = line_node.get_station_card_bottom_world(i)
+						iq_from_dir = Vector2(0, 1)    # exit downward
+					Conveyor.draw_routed_bidirectional(
+						station_world, iq_from_dir,
+						target_line.get_intake_queue_left_world(iq_id), Vector2(-1, 0),
 						_belt_layer,
-						Color(0.65, 0.2, 0.9, 0.9)
+						Color(0.2, 0.85, 0.65, 0.9),   # teal
+						target_line.get_bounds_world()
 					)
 
 
