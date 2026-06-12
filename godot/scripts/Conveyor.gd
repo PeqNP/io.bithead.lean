@@ -9,7 +9,7 @@
 
 class_name Conveyor
 
-const BELT_COLOR     := Color(0.3, 0.8, 0.7, 0.8)
+const BELT_COLOR     := Palette.BLUE_BELT
 const BELT_WIDTH     := 4.0
 ## Minimum straight run (px) from each endpoint before the first bend.
 const STUB_LEN       := 10.0
@@ -185,7 +185,7 @@ class ChevronBelt extends Node2D:
 	const LINE_W        :=  2.0
 
 	var _waypoints: Array[Vector2] = []
-	var _color: Color = Color(0.3, 0.8, 0.7, 0.8)
+	var _color: Color = Palette.BLUE_BELT
 	var _offset: float = 0.0
 
 

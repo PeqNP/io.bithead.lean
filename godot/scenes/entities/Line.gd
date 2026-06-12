@@ -10,12 +10,12 @@ const LINE_H_MIN   :=  3 * TILE_SIZE   # 192 px
 ## Y offset where hopper/stations/output content begins. Fixed regardless of line height.
 const CONTENT_TOP  := TILE_SIZE - SECTION_PAD   # 60 px
 
-const FILL_COLOR           := Color(0.165, 0.165, 0.353)   # #2a2a5a
-const FILL_FOCUSED_COLOR   := Color(0.200, 0.200, 0.440)
-const BORDER_COLOR         := Color(0.353, 0.353, 0.667)   # #5a5aaa
-const BORDER_FOCUSED_COLOR := Color(0.550, 0.550, 1.000)
+const FILL_COLOR           := Palette.BG_1
+const FILL_FOCUSED_COLOR   := Palette.BG_0
+const BORDER_COLOR         := Palette.FG_1
+const BORDER_FOCUSED_COLOR := Palette.BLUE
 const BORDER_WIDTH         := 3.0
-const LABEL_COLOR          := Color(1, 1, 1)
+const LABEL_COLOR          := Palette.FG_1
 const FONT_SIZE            := 11
 
 const INTAKE_W    :=  4 * TILE_SIZE   # fixed intake zone
@@ -248,7 +248,7 @@ func _rebuild_intake_queues(top: float, _h: float) -> void:
 	if intake_queues.is_empty():
 		# Empty placeholder with section label.
 		_add_placeholder(_sections, SECTION_PAD, top, card_w, card_h,
-			Color(0.15, 0.15, 0.40), "Intake\n(empty)")
+				Palette.BLUE_FILL, "Intake\n(empty)")
 		return
 
 	# Stack intake queues vertically from CONTENT_TOP downward.
@@ -354,7 +354,7 @@ func _rebuild_output_placeholder(top: float, h: float) -> void:
 	var n: int = (_data.get("stations", []) as Array).size()
 	var x := INTAKE_W + HOPPER_W + n * STATION_W + SECTION_PAD
 	_add_placeholder(_sections, x, top, OUTPUT_W - SECTION_PAD * 2, h,
-		Color(0.12, 0.30, 0.12), "Output")
+		Palette.GREEN_FILL, "Output")
 
 
 func _add_placeholder(parent: Node2D, x: float, y: float, w: float, h: float,

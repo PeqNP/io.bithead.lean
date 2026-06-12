@@ -5,8 +5,8 @@
 
 extends Node2D
 
-const BG_COLOR   := Color(0.102, 0.102, 0.180)   # #1a1a2e
-const DOT_COLOR  := Color(0.165, 0.165, 0.290)   # #2a2a4a
+const BG_COLOR   := Palette.BG_0
+const DOT_COLOR  := Palette.BG_1
 const DOT_RADIUS := 1.0
 const TILE_SIZE  := 64
 

@@ -9,16 +9,16 @@ extends Node2D
 const PANEL_W      := 128.0
 const ROW_H        := 16.0
 const PAD          :=  5.0
-const FILL_COLOR   := Color(0.08, 0.18, 0.08, 0.96)
-const BORDER_COLOR := Color(0.25, 0.55, 0.25)
-const LABEL_COLOR  := Color(1, 1, 1)
-const MUTED_COLOR  := Color(0.65, 0.75, 0.65)
+const FILL_COLOR   := Palette.BG_1_PANEL
+const BORDER_COLOR := Palette.GREEN
+const LABEL_COLOR  := Palette.FG_1
+const MUTED_COLOR  := Palette.FG_0
 const FONT_SIZE    := 9
 
 const HEALTH_COLORS := {
-	1: Color(0.086, 0.396, 0.204),
-	2: Color(0.631, 0.380, 0.039),
-	3: Color(0.600, 0.106, 0.106),
+	1: Palette.GREEN,
+	2: Palette.ORANGE,
+	3: Palette.RED,
 }
 
 var _rows: Array = []      # Array of {label: String, value: String}

@@ -10,9 +10,9 @@ extends Node2D
 
 const TILE_SIZE := 64
 
-const COLOR_AVAIL    := Color(0.2, 1.0, 0.3, 0.35)
-const COLOR_OCCUPIED := Color(1.0, 0.2, 0.2, 0.35)
-const COLOR_GHOST    := Color(1.0, 1.0, 1.0, 0.15)
+const COLOR_AVAIL    := Palette.GREEN_AVAIL
+const COLOR_OCCUPIED := Palette.RED_OCCUPIED
+const COLOR_GHOST    := Palette.FG_1_GHOST
 
 var _tile_w: int = 0
 var _tile_h: int = 0

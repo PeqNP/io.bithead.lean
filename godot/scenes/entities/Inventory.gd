@@ -8,18 +8,18 @@ const TILE_SIZE    := 64
 const INV_W        :=  2 * TILE_SIZE   # 128 px
 const INV_H        :=  2 * TILE_SIZE   # 128 px
 
-const FILL_COLOR           := Color(0.165, 0.353, 0.165)   # #2a5a2a
-const FILL_FOCUSED_COLOR   := Color(0.200, 0.440, 0.200)
-const BORDER_COLOR         := Color(0.353, 0.667, 0.353)   # #5aaa5a
-const BORDER_FOCUSED_COLOR := Color(0.550, 1.000, 0.550)
+const FILL_COLOR           := Palette.BG_1
+const FILL_FOCUSED_COLOR   := Palette.BG_0
+const BORDER_COLOR         := Palette.FG_1
+const BORDER_FOCUSED_COLOR := Palette.GREEN
 const BORDER_WIDTH         := 3.0
-const LABEL_COLOR          := Color(1, 1, 1)
+const LABEL_COLOR          := Palette.FG_1
 const FONT_SIZE            := 11
 
 const HEALTH_COLORS := {
-	1: Color(0.086, 0.396, 0.204),
-	2: Color(0.631, 0.380, 0.039),
-	3: Color(0.600, 0.106, 0.106),
+	1: Palette.GREEN,
+	2: Palette.ORANGE,
+	3: Palette.RED,
 }
 
 const STOCK_PANEL_SCENE := preload("res://scenes/entities/InventoryStockPanel.tscn")

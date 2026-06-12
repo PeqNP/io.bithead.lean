@@ -5,12 +5,12 @@
 
 extends Node2D
 
-const LABEL_COLOR   := Color(1, 1, 1)
+const LABEL_COLOR   := Palette.FG_1
 const FONT_SIZE     := 10
 const SMALL_FONT    := 9
 const BORDER_WIDTH  := 2.0
-const DEFAULT_FILL  := Color(0.18, 0.18, 0.45)
-const DEFAULT_BORDER := Color(0.40, 0.40, 0.80)
+const DEFAULT_FILL  := Palette.BG_1
+const DEFAULT_BORDER := Palette.BLUE
 
 var _data: Dictionary = {}
 var _card_w: float = 0.0

@@ -5,13 +5,13 @@
 extends Node2D
 
 const CARD_H       := 52.0
-const LABEL_COLOR  := Color(1, 1, 1)
-const MUTED_COLOR  := Color(0.65, 0.65, 0.65)
-const FILL_COLOR   := Color(0.12, 0.12, 0.28)
-const FILL_HOVER   := Color(0.18, 0.18, 0.38)
-const BORDER_COLOR := Color(0.30, 0.30, 0.60)
-const DONE_COLOR   := Color(0.15, 0.55, 0.20)
-const HOLD_COLOR   := Color(0.55, 0.20, 0.10)
+const LABEL_COLOR  := Palette.FG_1
+const MUTED_COLOR  := Palette.FG_0
+const FILL_COLOR   := Palette.BG_1
+const FILL_HOVER   := Palette.BG_0
+const BORDER_COLOR := Palette.FG_1
+const DONE_COLOR   := Palette.GREEN
+const HOLD_COLOR   := Palette.ORANGE
 const FONT_SIZE    := 10
 const SMALL_FONT   := 9
 
@@ -86,7 +86,7 @@ func _draw() -> void:
 	for a in assignees.slice(0, 3):
 		var avatar: String = str(a.get("avatar", ""))
 		var initials := _make_initials(str(a.get("name", "?"))) if avatar.is_empty() else avatar
-		draw_circle(Vector2(ax + 8, 38), 8, Color(0.3, 0.3, 0.6))
+		draw_circle(Vector2(ax + 8, 38), 8, Palette.BLUE)
 		draw_string(ThemeDB.fallback_font, Vector2(ax + 3, 41), initials,
 			HORIZONTAL_ALIGNMENT_LEFT, 16, 8, LABEL_COLOR)
 		ax += 20
@@ -103,7 +103,7 @@ func _draw() -> void:
 		var seg_w   := (bar_total_w - gap * (total - 1)) / float(total)
 		for i in total:
 			var x := bar_x + i * (seg_w + gap)
-			var color := DONE_COLOR if i < done else Color(0.2, 0.2, 0.4)
+			var color := DONE_COLOR if i < done else Palette.FG_0
 			draw_rect(Rect2(x, bar_y, seg_w, bar_h), color)
 
 

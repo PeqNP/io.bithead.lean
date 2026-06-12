@@ -5,10 +5,10 @@
 
 extends Node2D
 
-const LABEL_COLOR  := Color(1, 1, 1)
-const MUTED_COLOR  := Color(0.7, 0.7, 0.7)
-const FILL_COLOR   := Color(0.18, 0.28, 0.42)
-const BORDER_COLOR := Color(0.35, 0.55, 0.75)
+const LABEL_COLOR  := Palette.FG_1
+const MUTED_COLOR  := Palette.FG_0
+const FILL_COLOR   := Palette.BG_1
+const BORDER_COLOR := Palette.BLUE
 const BORDER_WIDTH := 2.0
 const FONT_SIZE    := 10
 const SMALL_FONT   := 9

@@ -12,10 +12,10 @@ const MAX_VISIBLE     := 5        # rows before scroll arrows appear
 const ROW_H           := 52.0
 const PAD             :=  4.0
 const OVERLAY_W       := 256.0   # matches STATION_W / num_stations; set by Line
-const FILL_COLOR      := Color(0.10, 0.10, 0.22, 0.96)
-const BORDER_COLOR    := Color(0.30, 0.30, 0.60)
-const LABEL_COLOR     := Color(1, 1, 1)
-const MUTED_COLOR     := Color(0.65, 0.65, 0.65)
+const FILL_COLOR      := Palette.BG_1_PANEL
+const BORDER_COLOR    := Palette.FG_1
+const LABEL_COLOR     := Palette.FG_1
+const MUTED_COLOR     := Palette.FG_0
 const FONT_SIZE       := 10
 const SMALL_FONT      := 9
 

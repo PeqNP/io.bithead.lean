@@ -533,10 +533,8 @@ func _render_belts() -> void:
 						inv_node.get_center_right_world(),
 						line_node.get_station_input_world(i),
 						_belt_layer,
-						Color(1.0, 0.65, 0.1, 0.9)   # amber
+						Palette.YELLOW_BELT
 					)
-
-			# Station → Line bidirectional belt (purple): station top/bottom → left-center of target line's first intake queue.
 			var sub_raw = st.get("connectsToLine")
 			if sub_raw != null:
 				var sub_node = line_nodes.get(int(sub_raw))
@@ -553,7 +551,7 @@ func _render_belts() -> void:
 						station_world, sub_from_dir,
 						sub_node.get_first_intake_queue_left_world(), Vector2(-1, 0),
 						_belt_layer,
-						Color(0.65, 0.2, 0.9, 0.9),   # purple
+						Palette.VIOLET_BELT,
 						sub_node.get_bounds_world()
 					)
 
@@ -576,7 +574,7 @@ func _render_belts() -> void:
 						station_world, iq_from_dir,
 						target_line.get_intake_queue_left_world(iq_id), Vector2(-1, 0),
 						_belt_layer,
-						Color(0.2, 0.85, 0.65, 0.9),   # teal
+						Palette.CYAN_BELT,
 						target_line.get_bounds_world()
 					)
 
