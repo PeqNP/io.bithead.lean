@@ -509,11 +509,11 @@ func _render_belts() -> void:
 	# Build intake-queue-id → line_node lookup for connectsToIntakeQueue belt routing.
 	_iq_to_line.clear()
 	for ld: Dictionary in (_snapshot.get("lines", []) as Array):
-		var ln = line_nodes.get(ld.get("id", 0))
+		var ln = line_nodes.get(int(ld.get("id", 0)))
 		if ln == null:
 			continue
 		for iq: Dictionary in (ld.get("intakeQueues", []) as Array):
-			_iq_to_line[iq.get("id", 0)] = ln
+			_iq_to_line[int(iq.get("id", 0))] = ln
 
 	for line_data in _snapshot.get("lines", []):
 		var c_line_id: int = line_data.get("id", 0)
