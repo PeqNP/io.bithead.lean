@@ -93,14 +93,20 @@ func _draw() -> void:
 			HORIZONTAL_ALIGNMENT_LEFT, 16, 8, LABEL_COLOR)
 		ax += 20
 
-	# Progress bar
+	# Per-operation progress bars (each operation = one segment, 2 px gap between).
 	var total: int = _data.get("totalOperations", 0)
 	var done: int  = _data.get("completedOperations", 0)
 	if total > 0:
+		var bar_x    := 8.0
+		var bar_y    := CARD_H - 6.0
+		var bar_h    := 4.0
+		var gap      := 2.0
 		var bar_total_w := _card_w - 70.0
-		draw_rect(Rect2(8, CARD_H - 6, bar_total_w, 4), Color(0.2, 0.2, 0.4))
-		var filled := bar_total_w * done / float(total)
-		draw_rect(Rect2(8, CARD_H - 6, filled, 4), DONE_COLOR)
+		var seg_w   := (bar_total_w - gap * (total - 1)) / float(total)
+		for i in total:
+			var x := bar_x + i * (seg_w + gap)
+			var color := DONE_COLOR if i < done else Color(0.2, 0.2, 0.4)
+			draw_rect(Rect2(x, bar_y, seg_w, bar_h), color)
 
 
 func _make_initials(full_name: String) -> String:

@@ -9,9 +9,11 @@
 
 extends Node2D
 
-const TILE_SIZE   := 64
-const LINE_W      := 12 * TILE_SIZE   # 768 px
-const LINE_H      :=  2 * TILE_SIZE   # 128 px
+const TILE_SIZE    := 64
+## Minimum line height (no intake queues). Height grows with intake queue count.
+const LINE_H_MIN   :=  3 * TILE_SIZE   # 192 px
+## Y offset where hopper/stations/output content begins. Fixed regardless of line height.
+const CONTENT_TOP  := TILE_SIZE - SECTION_PAD   # 60 px
 
 const FILL_COLOR           := Color(0.165, 0.165, 0.353)   # #2a2a5a
 const FILL_FOCUSED_COLOR   := Color(0.200, 0.200, 0.440)
@@ -21,11 +23,19 @@ const BORDER_WIDTH         := 3.0
 const LABEL_COLOR          := Color(1, 1, 1)
 const FONT_SIZE            := 11
 
-const INTAKE_W  :=  4 * TILE_SIZE
-const HOPPER_W  :=  2 * TILE_SIZE
-const STATION_W :=  4 * TILE_SIZE
-const OUTPUT_W  :=  2 * TILE_SIZE
+const INTAKE_W    :=  4 * TILE_SIZE   # fixed intake zone
+const HOPPER_W    :=  2 * TILE_SIZE   # fixed hopper zone
+const STATION_W   :=  3 * TILE_SIZE   # fixed per-station width
+const OUTPUT_W    :=  2 * TILE_SIZE   # fixed output zone
 const SECTION_PAD := 4
+
+## Minimum tile width when there are no stations (intake+hopper+output).
+const MIN_TILE_W := (INTAKE_W + HOPPER_W + OUTPUT_W) / TILE_SIZE   # 8 tiles
+
+## Computed at configure time from the number of stations.
+var _line_w: int = (INTAKE_W + HOPPER_W + OUTPUT_W)
+## Computed at configure time from the number of intake queues.
+var _line_h: int = LINE_H_MIN
 
 const INTAKE_QUEUE_SCENE := preload("res://scenes/entities/IntakeQueue.tscn")
 const HOPPER_SCENE       := preload("res://scenes/entities/Hopper.tscn")
@@ -64,7 +74,7 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var local := to_local(get_global_mouse_position())
-		var inside := Rect2(0, 0, LINE_W, LINE_H).has_point(local)
+		var inside := Rect2(0, 0, _line_w, _line_h).has_point(local)
 		if inside != _hovered:
 			_set_hovered(inside)
 
@@ -74,6 +84,9 @@ func configure(data: Dictionary) -> void:
 	_data = data
 	_entity_id = data.get("id", 0)
 	_locked = data.get("locked", false)
+
+	_compute_line_w()
+	_compute_line_h()
 
 	position = Vector2(
 		data.get("gridX", 0) * TILE_SIZE,
@@ -89,6 +102,29 @@ func configure(data: Dictionary) -> void:
 	_rebuild_conveyors()
 	_rebuild_controls()
 	queue_redraw()
+
+
+## Recompute _line_w from the current station count.
+func _compute_line_w() -> void:
+	var n: int = (_data.get("stations", []) as Array).size()
+	var stations_w: int = max(0, n) * STATION_W
+	_line_w = INTAKE_W + HOPPER_W + stations_w + OUTPUT_W
+
+
+## How many tiles wide this Line currently is.
+func tile_w() -> int:
+	return _line_w / TILE_SIZE
+
+## Recompute _line_h from the current intake queue count.
+func _compute_line_h() -> void:
+	var n: int = max(1, (_data.get("intakeQueues", []) as Array).size())
+	var card_h := 2 * TILE_SIZE
+	var raw := CONTENT_TOP + n * card_h + (n - 1) * SECTION_PAD + SECTION_PAD
+	_line_h = ceili(float(raw) / TILE_SIZE) * TILE_SIZE
+
+## How many tiles tall this Line currently is.
+func tile_h() -> int:
+	return _line_h / TILE_SIZE
 
 
 func update(data: Dictionary) -> void:
@@ -108,12 +144,13 @@ func set_grayed(grayed: bool) -> void:
 func _draw() -> void:
 	var fill   := FILL_FOCUSED_COLOR   if _focused else FILL_COLOR
 	var border := BORDER_FOCUSED_COLOR if _focused else BORDER_COLOR
-	draw_rect(Rect2(0, 0, LINE_W, LINE_H), fill)
-	draw_rect(Rect2(0, 0, LINE_W, LINE_H), border, false, BORDER_WIDTH)
+	draw_rect(Rect2(0, 0, _line_w, _line_h), fill)
+	draw_rect(Rect2(0, 0, _line_w, _line_h), border, false, BORDER_WIDTH)
 
 	# Section dividers
-	for x in [INTAKE_W, INTAKE_W + HOPPER_W, INTAKE_W + HOPPER_W + STATION_W]:
-		draw_line(Vector2(x, BORDER_WIDTH), Vector2(x, LINE_H - BORDER_WIDTH),
+	var stations_zone_w := (_data.get("stations", []) as Array).size() * STATION_W
+	for x in [INTAKE_W, INTAKE_W + HOPPER_W, INTAKE_W + HOPPER_W + stations_zone_w]:
+		draw_line(Vector2(x, BORDER_WIDTH), Vector2(x, _line_h - BORDER_WIDTH),
 			border * Color(1, 1, 1, 0.4), 1.0)
 
 
@@ -132,18 +169,18 @@ func _rebuild_controls() -> void:
 
 	var btn_y := int(BORDER_WIDTH) + 2
 
-	var move_btn := _make_ctrl_button("Move", Vector2(LINE_W - 190, btn_y))
+	var move_btn := _make_ctrl_button("Move", Vector2(_line_w - 190, btn_y))
 	move_btn.disabled = _locked
 	move_btn.pressed.connect(_on_move_pressed)
 	_controls.add_child(move_btn)
 
 	var focus_btn := _make_ctrl_button("Unfocus" if _focused else "Focus",
-		Vector2(LINE_W - 136, btn_y))
+		Vector2(_line_w - 136, btn_y))
 	focus_btn.pressed.connect(_on_focus_pressed.bind(focus_btn))
 	_controls.add_child(focus_btn)
 
 	var lock_btn := _make_ctrl_button("Unlock" if _locked else "Lock",
-		Vector2(LINE_W - 78, btn_y))
+		Vector2(_line_w - 78, btn_y))
 	lock_btn.pressed.connect(_on_lock_pressed.bind(lock_btn, move_btn))
 	_controls.add_child(lock_btn)
 
@@ -162,7 +199,7 @@ func _make_ctrl_button(c_text: String, pos: Vector2) -> Button:
 func _on_move_pressed() -> void:
 	if _locked:
 		return
-	move_requested.emit(self, 12, 2)
+	move_requested.emit(self, tile_w(), tile_h())
 
 
 func _on_focus_pressed(btn: Button) -> void:
@@ -187,8 +224,9 @@ func _rebuild_sections() -> void:
 	for child in _sections.get_children():
 		child.queue_free()
 
-	var top  := 20 + SECTION_PAD
-	var h    := LINE_H - top - SECTION_PAD
+	# Hopper/stations/output: fixed height at CONTENT_TOP. Intake queues stack vertically below.
+	var h   := 2 * TILE_SIZE
+	var top := float(CONTENT_TOP)
 
 	_rebuild_intake_queues(top, h)
 	_rebuild_hopper(top, h)
@@ -196,23 +234,23 @@ func _rebuild_sections() -> void:
 	_rebuild_output_placeholder(top, h)
 
 
-func _rebuild_intake_queues(top: float, h: float) -> void:
+func _rebuild_intake_queues(top: float, _h: float) -> void:
 	var intake_queues: Array = _data.get("intakeQueues", [])
+	var card_w := float(INTAKE_W - SECTION_PAD * 2)
+	var card_h := 2.0 * TILE_SIZE
 
 	if intake_queues.is_empty():
 		# Empty placeholder with section label.
-		_add_placeholder(_sections, SECTION_PAD, top, INTAKE_W - SECTION_PAD * 2, h,
+		_add_placeholder(_sections, SECTION_PAD, top, card_w, card_h,
 			Color(0.15, 0.15, 0.40), "Intake\n(empty)")
 		return
 
-	# Divide the intake zone evenly among queues.
-	var zone_w := INTAKE_W - SECTION_PAD * 2
-	var card_w := zone_w / float(intake_queues.size())
+	# Stack intake queues vertically from CONTENT_TOP downward.
 	for i in intake_queues.size():
-		var card_x := SECTION_PAD + i * card_w
+		var card_y := top + i * (card_h + SECTION_PAD)
 		var iq := INTAKE_QUEUE_SCENE.instantiate()
 		_sections.add_child(iq)
-		iq.configure(intake_queues[i], card_x, top, card_w - SECTION_PAD, h)
+		iq.configure(intake_queues[i], SECTION_PAD, card_y, card_w, card_h)
 
 
 func _rebuild_hopper(top: float, h: float) -> void:
@@ -235,34 +273,34 @@ func _rebuild_station_placeholder(_top: float, _h: float) -> void:
 func _rebuild_stations(top: float, h: float) -> void:
 	var stations: Array = _data.get("stations", [])
 	var zone_x   := float(INTAKE_W + HOPPER_W)
-	var zone_w   := float(STATION_W)
+	var stations_zone_w := float(stations.size() * STATION_W)
 
 	if stations.is_empty():
-		_add_placeholder(_sections, zone_x + SECTION_PAD, top,
-			zone_w - SECTION_PAD * 2, h, Color(0.12, 0.12, 0.30), "Stations\n(none)")
-		_add_station_button(zone_x + SECTION_PAD, top, h, -1, 0)
+		# No stations: no zone to show (output follows immediately).
+		_add_station_button(zone_x + SECTION_PAD, top, h, _data.get("id", 0), 0)
 		return
 
-	var card_w := (zone_w - SECTION_PAD * 2) / float(stations.size())
+	var card_w := float(STATION_W) - SECTION_PAD   # fixed per-station width
 
 	for i in stations.size():
-		var card_x := zone_x + SECTION_PAD + i * card_w
+		var card_x := zone_x + SECTION_PAD + i * float(STATION_W)
 		var station := STATION_SCENE.instantiate()
 		_sections.add_child(station)
-		station.configure(stations[i], i, card_x, top, card_w - SECTION_PAD, h)
+		station.configure(stations[i], i, card_x, top, card_w, h)
 		station.overlay_requested.connect(
 			func(s: Node2D, ot: String): _on_overlay_requested(s, ot, card_x, top)
 		)
 
-		# Add "+" before first and between each pair.
+		# "+" before first and between/after stations.
 		if i == 0:
 			_add_station_button(zone_x + SECTION_PAD - 14, top, h, _data.get("id", 0), 0)
-		_add_station_button(card_x + card_w, top, h, _data.get("id", 0), i + 1)
+		_add_station_button(zone_x + SECTION_PAD + (i + 1) * float(STATION_W), top, h,
+			_data.get("id", 0), i + 1)
 
 	# Create (or reuse) the shared overlay instance.
 	if _active_overlay == null:
 		_active_overlay = OVERLAY_SCENE.instantiate()
-		add_child(_active_overlay)   # child of Line so it renders above sections
+		add_child(_active_overlay)
 
 
 ## Small "+" button to add a station at a given position.
@@ -312,7 +350,8 @@ func _rebuild_output_placeholder(top: float, h: float) -> void:
 	var has_output: bool = _data.get("hasOutput", true)
 	if not has_output:
 		return
-	var x := INTAKE_W + HOPPER_W + STATION_W + SECTION_PAD
+	var n: int = (_data.get("stations", []) as Array).size()
+	var x := INTAKE_W + HOPPER_W + n * STATION_W + SECTION_PAD
 	_add_placeholder(_sections, x, top, OUTPUT_W - SECTION_PAD * 2, h,
 		Color(0.12, 0.30, 0.12), "Output")
 
@@ -343,8 +382,8 @@ func _rebuild_conveyors() -> void:
 	for child in _conveyors.get_children():
 		child.queue_free()
 
-	var top   := 20 + SECTION_PAD
-	var mid_y := top + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
+	# mid_y: center of the 2-tile content row (hopper/stations/output), which is fixed at CONTENT_TOP.
+	var mid_y := float(CONTENT_TOP) + TILE_SIZE
 
 	# Intake → Hopper
 	Conveyor.draw_animated(
@@ -362,10 +401,12 @@ func _rebuild_conveyors() -> void:
 
 	# Stations → Output
 	var has_output: bool = _data.get("hasOutput", true)
+	var n_stations: int = (_data.get("stations", []) as Array).size()
 	if has_output:
+		var sx := INTAKE_W + HOPPER_W + n_stations * STATION_W
 		Conveyor.draw_animated(
-			Vector2(INTAKE_W + HOPPER_W + STATION_W - SECTION_PAD, mid_y),
-			Vector2(INTAKE_W + HOPPER_W + STATION_W + SECTION_PAD, mid_y),
+			Vector2(sx - SECTION_PAD, mid_y),
+			Vector2(sx + SECTION_PAD, mid_y),
 			_conveyors
 		)
 
@@ -376,33 +417,27 @@ func _rebuild_conveyors() -> void:
 
 ## World-space left-edge center of station[index]. Used for Inventory→Station belts.
 func get_station_input_world(station_index: int) -> Vector2:
-	var n: int = max(1, _data.get("stations", []).size())
-	var zone_x := float(INTAKE_W + HOPPER_W)
-	var card_w := (float(STATION_W) - SECTION_PAD * 2) / float(n)
-	var card_x := zone_x + SECTION_PAD + station_index * card_w
-	var mid_y := 20.0 + SECTION_PAD + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
+	var card_x := float(INTAKE_W + HOPPER_W + SECTION_PAD + station_index * STATION_W)
+	var mid_y := float(CONTENT_TOP) + TILE_SIZE   # center of 2-tile content row
 	return position + Vector2(card_x, mid_y)
 
 
 ## World-space top-center of station[index]. Used as the subassembly forward/return anchor.
 func get_station_top_world(station_index: int) -> Vector2:
-	var n: int = max(1, _data.get("stations", []).size())
-	var zone_x := float(INTAKE_W + HOPPER_W)
-	var card_w := (float(STATION_W) - SECTION_PAD * 2) / float(n)
-	var card_x := zone_x + SECTION_PAD + station_index * card_w
-	return position + Vector2(card_x + card_w / 2.0, 0.0)
+	var card_x := float(INTAKE_W + HOPPER_W + SECTION_PAD + station_index * STATION_W)
+	return position + Vector2(card_x + float(STATION_W - SECTION_PAD) / 2.0, 0.0)
 
 
 ## World-space left-edge center of the first intake queue. Subassembly return target.
 func get_first_intake_world() -> Vector2:
-	var mid_y := 20.0 + SECTION_PAD + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
+	var mid_y := float(CONTENT_TOP) + TILE_SIZE   # center of 2-tile content row
 	return position + Vector2(0.0, mid_y)
 
 
 ## World-space right-edge center of the output section. Subassembly return source.
 func get_output_world() -> Vector2:
-	var mid_y := 20.0 + SECTION_PAD + (LINE_H - 20 - SECTION_PAD * 2) / 2.0
-	return position + Vector2(LINE_W, mid_y)
+	var mid_y := float(CONTENT_TOP) + TILE_SIZE   # center of 2-tile content row
+	return position + Vector2(_line_w, mid_y)
 
 
 ## Called by FactoryFloor when camera zoom index changes.

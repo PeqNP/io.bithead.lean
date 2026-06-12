@@ -107,12 +107,19 @@ func _render_entities(snapshot: Dictionary) -> void:
 	_snapshot = snapshot
 	var entities := $Entities
 
-	# Build incoming map: entity_id → {data, tile_w, tile_h}.
+	# Build incoming map: entity_id → {data, is_line}.
+	# Tile width for Lines is computed from station count (each station = 2 tiles).
 	var incoming: Dictionary = {}
 	for line_data: Dictionary in (snapshot.get("lines", []) as Array):
-		incoming[line_data.get("id", 0)] = {"data": line_data, "tw": 12, "th": 2}
+		var n_st: int = (line_data.get("stations", []) as Array).size()
+		var tw: int = 8 + n_st * 3   # intake(4)+hopper(2)+n*station(3)+output(2)
+		# th: mirrors Line._compute_line_h(). CONTENT_TOP=60, card_h=128, gap=4, bottom_pad=4.
+		var n_iq: int = max(1, (line_data.get("intakeQueues", []) as Array).size())
+		var raw_h := 60 + n_iq * 128 + (n_iq - 1) * 4 + 4
+		var th: int = ceili(float(raw_h) / 64.0)
+		incoming[line_data.get("id", 0)] = {"data": line_data, "tw": tw, "th": th, "is_line": true}
 	for inv_data: Dictionary in (snapshot.get("inventories", []) as Array):
-		incoming[inv_data.get("id", 0)] = {"data": inv_data, "tw": 2, "th": 2}
+		incoming[inv_data.get("id", 0)] = {"data": inv_data, "tw": 2, "th": 2, "is_line": false}
 
 	# Remove entities no longer in the snapshot.
 	var stale: Array = []
@@ -130,28 +137,32 @@ func _render_entities(snapshot: Dictionary) -> void:
 		var c_data: Dictionary = info["data"]
 		var tw: int = info["tw"]
 		var th: int = info["th"]
+		var c_is_line: bool = info["is_line"]
 		var gx: int = c_data.get("gridX", 0)
 		var gy: int = c_data.get("gridY", 0)
 
 		if _entity_nodes.has(eid):
-			# Update existing — re-occupy grid only if position changed.
+			# Update existing — re-occupy grid if position OR tile width changed.
 			var node: Node2D = _entity_nodes[eid]
 			var old_x := int(node.position.x) / TILE_SIZE
 			var old_y := int(node.position.y) / TILE_SIZE
-			if old_x != gx or old_y != gy:
+			var old_tw: int = node.get_meta("tile_w", tw)
+			if old_x != gx or old_y != gy or old_tw != tw:
 				grid.free_entity(eid)
 				grid.occupy(gx, gy, tw, th, eid)
+				node.set_meta("tile_w", tw)
 			node.update(c_data)
 		else:
 			# Create new node.
 			var node: Node2D
-			if tw == 12:
+			if c_is_line:
 				node = LINE_SCENE.instantiate()
 			else:
 				node = INVENTORY_SCENE.instantiate()
 			entities.add_child(node)
 			node.configure(c_data)
 			node.set_zoom_index(_zoom_index)
+			node.set_meta("is_line", c_is_line)
 			_wire_entity_signals(node, tw, th)
 			grid.occupy(gx, gy, tw, th, eid)
 			_entity_nodes[eid] = node
@@ -202,7 +213,7 @@ func _on_create_inventory() -> void:
 var _next_placeholder_id: int = -1
 
 func _add_placeholder_line() -> void:
-	var pos: Vector2i = grid.get_first_available(12, 2)
+	var pos: Vector2i = grid.get_first_available(8, 3)   # 8 = min tiles with 0 stations
 	if pos == Vector2i(-1, -1):
 		return
 	var data := {
@@ -222,8 +233,9 @@ func _add_placeholder_line() -> void:
 	$Entities.add_child(node)
 	node.configure(data)
 	node.set_zoom_index(_zoom_index)
-	_wire_entity_signals(node, 12, 2)
-	grid.occupy(pos.x, pos.y, 12, 2, data["id"])
+	node.set_meta("is_line", true)
+	_wire_entity_signals(node, 8, 3)
+	grid.occupy(pos.x, pos.y, 8, 3, data["id"])
 	_entity_nodes[data["id"]] = node
 	_scroll_camera_to_tile(pos)
 
@@ -245,6 +257,7 @@ func _add_placeholder_inventory() -> void:
 	$Entities.add_child(node)
 	node.configure(data)
 	node.set_zoom_index(_zoom_index)
+	node.set_meta("is_line", false)
 	_wire_entity_signals(node, 2, 2)
 	grid.occupy(pos.x, pos.y, 2, 2, data["id"])
 	_entity_nodes[data["id"]] = node
@@ -385,7 +398,7 @@ func _confirm_drag() -> void:
 
 	# Persist via BOSS.
 	var path: String
-	if _drag_tile_w == 12:
+	if _drag_entity.get_meta("is_line", false):
 		path = "/lean/line/%d/position" % _drag_entity_id
 	else:
 		path = "/lean/inventory/%d/position" % _drag_entity_id
@@ -422,7 +435,7 @@ func _on_focus_toggled(entity_id: int, focused: bool) -> void:
 	var entity := _find_entity(entity_id)
 	if entity == null:
 		return
-	var is_line: bool = entity.get_meta("tile_w", 2) == 12
+	var is_line: bool = entity.get_meta("is_line", false)
 	var path: String = "/lean/line/%d/focused" % entity_id if is_line \
 		else "/lean/inventory/%d/focused" % entity_id
 	BOSSBridge.patch(path, {"focused": focused})
@@ -501,7 +514,7 @@ func _render_belts() -> void:
 		if child == _drag_overlay:
 			continue
 		var tile_w: int = child.get_meta("tile_w", 0)
-		if tile_w == 12:
+		if child.get_meta("is_line", false):
 			line_nodes[child._entity_id] = child
 		elif tile_w == 2:
 			inv_nodes[child._entity_id] = child
@@ -556,7 +569,7 @@ func _on_lock_toggled(entity_id: int, locked: bool) -> void:
 	var entity := _find_entity(entity_id)
 	if entity == null:
 		return
-	var is_line: bool = entity.get_meta("tile_w", 2) == 12
+	var is_line: bool = entity.get_meta("is_line", false)
 	var path: String = "/lean/line/%d/locked" % entity_id if is_line \
 		else "/lean/inventory/%d/locked" % entity_id
 	BOSSBridge.patch(path, {"locked": locked})
