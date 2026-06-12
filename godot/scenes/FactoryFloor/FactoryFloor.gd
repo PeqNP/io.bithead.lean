@@ -299,8 +299,11 @@ func zoom_out() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Pan with middle mouse drag.
-	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+	# Pan with middle mouse drag or left mouse drag on empty floor.
+	if event is InputEventMouseMotion and (
+		Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE) or
+		(Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not _drag_entity)
+	):
 		_pan(_camera.position - event.relative * PAN_SPEED / _camera.zoom)
 		return
 
