@@ -40,9 +40,10 @@ var _col_shape: RectangleShape2D
 var _stock_panel: Node2D = null
 var _stock_open: bool = false
 
-@onready var _name_label:   Label         = $Name
+@onready var _layout:       VBoxContainer = $Layout
+@onready var _name_label:   Label         = $Layout/Name
 @onready var _health_strip: ColorRect     = $HealthStrip
-@onready var _stock_btn:    Button        = $StockButton
+@onready var _stock_btn:    Button        = $Layout/StockButton
 @onready var _controls:     VBoxContainer = $Controls
 @onready var _move_btn:     Button        = $Controls/MoveButton
 @onready var _focus_btn:    Button        = $Controls/FocusButton
@@ -81,6 +82,11 @@ func _ready() -> void:
 	_focus_btn.pressed.connect(_on_focus_pressed)
 	_lock_btn.pressed.connect(_on_lock_pressed)
 
+	Palette.style_button(_stock_btn, Palette.GREEN)
+	Palette.style_button(_move_btn,  Palette.GREEN)
+	Palette.style_button(_focus_btn, Palette.GREEN)
+	Palette.style_button(_lock_btn,  Palette.GREEN)
+
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
@@ -99,6 +105,9 @@ func configure(data: Dictionary) -> void:
 		data.get("gridX", 0) * TILE_SIZE,
 		data.get("gridY", 0) * TILE_SIZE
 	)
+
+	_layout.position = Vector2(4, 4)
+	_layout.size = Vector2(INV_W - 8, INV_H - 8 - 18)
 
 	_name_label.text = str(data.get("name", ""))
 	_name_label.add_theme_color_override("font_color", LABEL_COLOR)

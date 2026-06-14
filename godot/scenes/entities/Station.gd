@@ -61,6 +61,9 @@ func configure(data: Dictionary, station_index: int,
 	_wu_btn.text = "WUs (%d)" % wu_count
 	_wu_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	_ops_btn.add_theme_font_size_override("font_size", SMALL_FONT)
+	var accent := _parse_color(data.get("color", null), "border", BORDER_COLOR)
+	Palette.style_button(_wu_btn, accent)
+	Palette.style_button(_ops_btn, accent)
 
 	queue_redraw()
 

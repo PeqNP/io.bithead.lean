@@ -78,3 +78,26 @@ const YELLOW_BELT  := Color(0.710, 0.537, 0.000, 0.90)   # Inventory → Station
 const VIOLET_BELT  := Color(0.424, 0.443, 0.769, 0.90)   # Station ↔ Line
 const CYAN_BELT    := Color(0.165, 0.631, 0.596, 0.90)   # Station → IntakeQueue
 const BLUE_BELT    := Color(0.149, 0.545, 0.824, 0.80)   # Chevron belt default
+
+# ---------------------------------------------------------------------------
+# Button styling utility
+# ---------------------------------------------------------------------------
+
+## Apply a flat accent-colored style to a Button node.
+## Produces a compact square-ish button with white text.
+## Call from configure() so the accent color is applied for every data update.
+static func style_button(btn: Button, accent: Color) -> void:
+	var make_sb := func(c: Color) -> StyleBoxFlat:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = c
+		sb.set_corner_radius_all(3)
+		sb.content_margin_left   = 4.0
+		sb.content_margin_right  = 4.0
+		sb.content_margin_top    = 4.0
+		sb.content_margin_bottom = 4.0
+		return sb
+	btn.add_theme_stylebox_override("normal",  make_sb.call(accent))
+	btn.add_theme_stylebox_override("hover",   make_sb.call(accent.lightened(0.15)))
+	btn.add_theme_stylebox_override("pressed", make_sb.call(accent.darkened(0.15)))
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.custom_minimum_size = Vector2(0.0, 24.0)

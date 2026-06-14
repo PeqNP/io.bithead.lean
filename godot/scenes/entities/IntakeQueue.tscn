@@ -14,3 +14,7 @@ clip_text = true
 
 [node name="CycleTime" type="Label" parent="Layout"]
 clip_text = true
+
+[node name="Distribution" type="Label" parent="Layout"]
+clip_text = true
+visible = false

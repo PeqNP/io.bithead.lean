@@ -26,6 +26,7 @@ var _card_h: float = 0.0
 func _ready() -> void:
 	_start_btn.pressed.connect(_on_start_pressed)
 	_start_btn.hide()
+	Palette.style_button(_start_btn, BORDER_COLOR)
 
 
 func configure(data: Dictionary, card_x: float, card_y: float,
