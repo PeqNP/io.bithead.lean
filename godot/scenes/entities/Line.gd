@@ -54,9 +54,7 @@ var _hovered: bool = false
 var _area: Area2D
 var _col_shape: RectangleShape2D
 
-var _active_overlay: Node2D = null   # the StationOverlay instance
-var _active_station_id: int = -1
-var _active_overlay_type: String = ""
+var _overlays: Array[Node] = []  # StationOverlay instances, one per station
 
 @onready var _label:     Label  = $Label
 @onready var _sections:  Node2D = $Sections
@@ -240,6 +238,9 @@ func _on_lock_pressed(lock_btn: Button, move_btn: Button) -> void:
 func _rebuild_sections() -> void:
 	for child in _sections.get_children():
 		child.queue_free()
+	for ov in _overlays:
+		ov.queue_free()
+	_overlays.clear()
 
 	# Hopper/stations/output: fixed height at CONTENT_TOP. Intake queues stack vertically below.
 	var h   := 2 * TILE_SIZE
@@ -309,16 +310,17 @@ func _rebuild_stations(top: float, h: float) -> void:
 			func(s: Node2D, ot: String): _on_overlay_requested(s, ot, card_x, top)
 		)
 
+		var overlay := OVERLAY_SCENE.instantiate() as Node2D
+		add_child(overlay)
+		overlay.set_width(card_w)
+		_overlays.append(overlay)
+		station.set_meta("overlay", overlay)
+
 		# "+" before first and between/after stations.
 		if i == 0:
 			_add_station_button(zone_x + SECTION_PAD - 14, top, h, _data.get("id", 0), 0)
 		_add_station_button(zone_x + SECTION_PAD + (i + 1) * float(STATION_W), top, h,
 			_data.get("id", 0), i + 1)
-
-	# Create (or reuse) the shared overlay instance.
-	if _active_overlay == null:
-		_active_overlay = OVERLAY_SCENE.instantiate()
-		add_child(_active_overlay)
 
 
 ## Small "+" button to add a station at a given position.
@@ -340,28 +342,24 @@ func _on_add_station(line_id: int, position_index: int) -> void:
 
 func _on_overlay_requested(station: Node2D, overlay_type: String,
 		card_x: float, card_top: float) -> void:
-	var station_id: int = -1
-	if "_data" in station:
-		station_id = (station._data as Dictionary).get("id", -1)
+	if not station.has_meta("overlay"):
+		return
+	var overlay: Node2D = station.get_meta("overlay")
 
-	# Toggle: pressing the same button again closes the overlay.
-	if _active_station_id == station_id and _active_overlay_type == overlay_type:
-		_active_overlay.hide_overlay()
-		_active_station_id = -1
-		_active_overlay_type = ""
+	# Toggle: pressing the same button again closes this station's overlay.
+	var current_type: String = overlay.get_meta("active_type", "")
+	if current_type == overlay_type and overlay.is_visible():
+		overlay.hide_overlay()
+		overlay.set_meta("active_type", "")
 		return
 
-	_active_station_id = station_id
-	_active_overlay_type = overlay_type
-
-	# Position overlay just below the station card.
-	_active_overlay.position = Vector2(card_x, card_top + station._card_h + 2)
-	_active_overlay.set_width(station._card_w)
+	overlay.set_meta("active_type", overlay_type)
+	overlay.position = Vector2(card_x, card_top + station._card_h + 2)
 
 	if overlay_type == "work_units":
-		_active_overlay.show_work_units(station._data)
+		overlay.show_work_units(station._data)
 	else:
-		_active_overlay.show_operations(station._data)
+		overlay.show_operations(station._data)
 
 
 func _rebuild_output_placeholder(top: float, h: float) -> void:
@@ -479,5 +477,5 @@ func get_area_rid() -> RID:
 ## zi: 0=100% 1=75% 2=50% 3=25%
 func set_zoom_index(zi: int) -> void:
 	_label.visible = (zi < 3)
-	if _active_overlay != null:
-		_active_overlay.set_zoom_index(zi)
+	for ov in _overlays:
+		ov.set_zoom_index(zi)
