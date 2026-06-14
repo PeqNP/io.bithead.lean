@@ -18,3 +18,10 @@ clip_text = true
 [node name="Distribution" type="Label" parent="Layout"]
 clip_text = true
 visible = false
+
+[node name="Spacer" type="Control" parent="Layout"]
+size_flags_vertical = 3
+
+[node name="WUButton" type="Button" parent="Layout"]
+text = "Work Units (0)"
+size_flags_horizontal = 3

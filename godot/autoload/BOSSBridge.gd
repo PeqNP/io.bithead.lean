@@ -52,6 +52,28 @@ func poll_snapshot() -> void:
 	snapshot_updated.emit(response)
 
 
+## Open a BOSS window with the given controller and parameters array.
+## Callable from any script (no _boss reference needed).
+func open_window(controller: String, parameters: Array) -> void:
+	if not Engine.has_singleton("JavaScriptBridge"):
+		print("BOSSBridge.open_window [editor]: controller=%s params=%s" % [controller, JSON.stringify(parameters)])
+		return
+	var window := JavaScriptBridge.get_interface("window")
+	if not (window and window.boss):
+		push_warning("BOSSBridge.open_window: window.boss not available")
+		return
+	var data_obj: JavaScriptObject = JavaScriptBridge.create_object("Object")
+	data_obj["controller"] = controller
+	var arr: JavaScriptObject = JavaScriptBridge.create_object("Array")
+	for i in parameters.size():
+		arr[str(i)] = parameters[i]
+	data_obj["parameters"] = arr
+	var ev: JavaScriptObject = JavaScriptBridge.create_object("Object")
+	ev["name"] = "open-window"
+	ev["data"] = data_obj
+	window.boss.receive(ev)
+
+
 ## POST to a BOSS route. Returns the parsed response Dictionary, or empty on error.
 func post(path: String, body: Dictionary) -> Dictionary:
 	return await _request("POST", path, body)

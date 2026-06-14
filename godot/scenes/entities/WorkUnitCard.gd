@@ -19,12 +19,16 @@ var _data: Dictionary = {}
 var _card_w: float = 0.0
 var _hovered: bool = false
 
-@onready var _done_btn: Button = $DoneButton
+@onready var _buttons:  HBoxContainer = $Buttons
+@onready var _open_btn: Button        = $Buttons/OpenButton
+@onready var _done_btn: Button        = $Buttons/DoneButton
 
 
 func _ready() -> void:
 	set_process_input(true)
+	_open_btn.pressed.connect(_on_open_pressed)
 	_done_btn.pressed.connect(_on_done_pressed)
+	Palette.style_button(_open_btn, Palette.BLUE)
 
 
 func configure(data: Dictionary, card_w: float, card_y: float) -> void:
@@ -32,13 +36,18 @@ func configure(data: Dictionary, card_w: float, card_y: float) -> void:
 	_card_w = card_w
 	position = Vector2(0, card_y)
 
+	const BTN_H := 20.0
+	const BTN_Y := CARD_H - BTN_H - 4.0
+	_buttons.position = Vector2(4, BTN_Y)
+	_buttons.size = Vector2(card_w - 8, BTN_H)
+
 	var can_done: bool = _can_done()
-	_done_btn.position = Vector2(card_w - 54, 16)
-	_done_btn.size = Vector2(50, 20)
 	_done_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	_done_btn.disabled = not can_done
 	if not can_done:
 		_done_btn.tooltip_text = "Complete all operations first"
+	Palette.style_button(_done_btn, Palette.GREEN if can_done else Palette.FG_0)
+	_open_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 
 	queue_redraw()
 
@@ -47,6 +56,10 @@ func _can_done() -> bool:
 	var total: int = _data.get("totalOperations", 0)
 	var done: int  = _data.get("completedOperations", 0)
 	return total == 0 or done >= total
+
+
+func _on_open_pressed() -> void:
+	BOSSBridge.open_window("StationWorkspace", [_data.get("id", 0)])
 
 
 func _input(event: InputEvent) -> void:

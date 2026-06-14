@@ -371,7 +371,7 @@ func _rebuild_output_placeholder(top: float, h: float) -> void:
 	var x := INTAKE_W + HOPPER_W + n * STATION_W + SECTION_PAD
 	var output := OUTPUT_SCENE.instantiate()
 	_sections.add_child(output)
-	output.configure(x, top, OUTPUT_W - SECTION_PAD * 2, h)
+	output.configure(x, top, OUTPUT_W - SECTION_PAD * 2, h, int(_data.get("id", 0)))
 
 
 func _rebuild_conveyors() -> void:

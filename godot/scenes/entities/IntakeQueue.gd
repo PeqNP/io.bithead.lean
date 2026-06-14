@@ -20,6 +20,7 @@ var _card_h: float = 0.0
 @onready var _name_label:   Label         = $Layout/Name
 @onready var _cycle_label:  Label         = $Layout/CycleTime
 @onready var _dist_label:   Label         = $Layout/Distribution
+@onready var _wu_btn:       Button        = $Layout/WUButton
 
 
 ## Place and populate this card.
@@ -33,8 +34,6 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 
 	_layout.position = Vector2(4, 4)
 	_layout.size = Vector2(card_w - 8, card_h - 8)
-
-	_name_label.text = str(data.get("name", ""))
 	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
 	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
 
@@ -52,6 +51,15 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	else:
 		_dist_label.hide()
 
+	var num_wu: int = int(data.get("numWorkUnits", 0))
+	_wu_btn.text = "Work Units (%d)" % num_wu
+	_wu_btn.add_theme_font_size_override("font_size", SMALL_FONT)
+	var accent := _parse_color(data.get("color", null), "border", DEFAULT_BORDER)
+	Palette.style_button(_wu_btn, accent)
+	var iq_id: int = int(data.get("id", 0))
+	if not _wu_btn.pressed.is_connected(_on_wu_pressed):
+		_wu_btn.pressed.connect(_on_wu_pressed.bind(iq_id))
+
 	queue_redraw()
 
 
@@ -64,6 +72,10 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, _card_w, _card_h), border, false, BORDER_WIDTH)
 
 
+
+
+func _on_wu_pressed(iq_id: int) -> void:
+	BOSSBridge.open_window("WorkUnits", [iq_id])
 
 
 func _parse_color(color_data, key: String, fallback: Color) -> Color:

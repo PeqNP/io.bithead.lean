@@ -142,6 +142,19 @@ If you believe `draw_string` is necessary, **ask first**.
 ### Drag position label
 The `(x, y)` tile coordinate label during drag is drawn via `draw_string` in `DragOverlay._draw()`, positioned 4 px above the ghost's top-left corner. There is no `$PosLabel` node.
 
+### JavaScriptBridge — never use `eval`
+All JavaScript interop must use `JavaScriptBridge.get_interface()` and `JavaScriptBridge.create_object()`. Never use `JavaScriptBridge.eval()`.
+
+Check object existence in GDScript before calling methods:
+```gdscript
+var window := JavaScriptBridge.get_interface("window")
+if not (window and window.boss):
+    push_warning("window.boss not available")
+    return
+```
+
+This pattern is established in `WebBOSSDelegate.gd` and `BOSSBridge.open_window()`. All future JS interop must follow it.
+
 ---
 
 ## Entity Quick Reference
