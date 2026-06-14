@@ -64,8 +64,27 @@ func _process(_delta: float) -> void:
 func _ready() -> void:
 	BOSSBridge.snapshot_updated.connect(_on_snapshot_updated)
 	BOSSBridge.error.connect(_on_boss_error)
+	get_viewport().size_changed.connect(_on_viewport_resized)
+	get_tree().root.size_changed.connect(_on_viewport_resized)
 
 	_update_camera_limits()
+
+	# Ensure stretch settings are applied at runtime (canvas_items + expand).
+	# This makes the viewport size grow to match the containing window/canvas size
+	# when resized (revealing more of the floor), and makes project settings changes
+	# take effect even if the editor UI / project.godot write is having issues.
+	var root := get_tree().root
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+
+	# Apply camera/background updates for whatever the *current* viewport size is
+	# (after forcing the scale mode). This is important on web where the canvas
+	# may have already been sized by the container before _ready finishes.
+	_on_viewport_resized()
+
+	if OS.is_debug_build():
+		print("FactoryFloor: effective viewport size at ready: ", get_viewport_rect().size)
+		print("FactoryFloor: content_scale_mode=", root.content_scale_mode, " aspect=", root.content_scale_aspect)
 
 	_panel.create_line_pressed.connect(_on_create_line)
 	_panel.create_inventory_pressed.connect(_on_create_inventory)
@@ -279,6 +298,23 @@ func _update_camera_limits() -> void:
 	_camera.limit_top    = int(bounds.position.y)
 	_camera.limit_right  = int(bounds.end.x)
 	_camera.limit_bottom = int(bounds.end.y)
+
+
+func _on_viewport_resized() -> void:
+	_update_camera_limits()
+	# Re-clamp the camera so that growing the window reveals more floor
+	# (instead of leaving the view stuck at the old edges), and shrinking
+	# pulls the view back inside bounds.
+	var bounds := _compute_floor_bounds()
+	var half_view := get_viewport_rect().size * 0.5 / _camera.zoom
+	_camera.position = _camera.position.clamp(
+		bounds.position + half_view,
+		bounds.end - half_view
+	)
+	_bg.queue_redraw()
+
+	if OS.is_debug_build():
+		print("FactoryFloor: viewport resized to ", get_viewport_rect().size)
 
 
 func set_zoom(index: int) -> void:
