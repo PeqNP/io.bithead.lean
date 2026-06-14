@@ -316,6 +316,12 @@ func _rebuild_stations(top: float, h: float) -> void:
 		_overlays.append(overlay)
 		station.set_meta("overlay", overlay)
 
+		# Restore saved overlay state without making an HTTP call.
+		var saved: String = (stations[i] as Dictionary).get("overlay", "none")
+		if saved != "none":
+			var restore_type := "work_units" if saved == "workUnits" else "operations"
+			_show_station_overlay(station, restore_type, card_x, top)
+
 		# "+" before first and between/after stations.
 		if i == 0:
 			_add_station_button(zone_x + SECTION_PAD - 14, top, h, _data.get("id", 0), 0)
@@ -340,10 +346,22 @@ func _on_add_station(line_id: int, position_index: int) -> void:
 	BOSSBridge.poll_snapshot()
 
 
+## Show a station's overlay without persisting — used for auto-restore during rebuild.
+func _show_station_overlay(station: Node2D, overlay_type: String, card_x: float, card_top: float) -> void:
+	var overlay: Node2D = station.get_meta("overlay")
+	overlay.set_meta("active_type", overlay_type)
+	overlay.position = Vector2(card_x, card_top + station._card_h + 2)
+	if overlay_type == "work_units":
+		overlay.show_work_units(station._data)
+	else:
+		overlay.show_operations(station._data)
+
+
 func _on_overlay_requested(station: Node2D, overlay_type: String,
 		card_x: float, card_top: float) -> void:
 	if not station.has_meta("overlay"):
 		return
+	var station_id: int = (station._data as Dictionary).get("id", 0)
 	var overlay: Node2D = station.get_meta("overlay")
 
 	# Toggle: pressing the same button again closes this station's overlay.
@@ -351,15 +369,12 @@ func _on_overlay_requested(station: Node2D, overlay_type: String,
 	if current_type == overlay_type and overlay.is_visible():
 		overlay.hide_overlay()
 		overlay.set_meta("active_type", "")
+		BOSSBridge.patch("/lean/station/view-state/%d" % station_id, {"overlay": "none"})
 		return
 
-	overlay.set_meta("active_type", overlay_type)
-	overlay.position = Vector2(card_x, card_top + station._card_h + 2)
-
-	if overlay_type == "work_units":
-		overlay.show_work_units(station._data)
-	else:
-		overlay.show_operations(station._data)
+	var api_overlay := "workUnits" if overlay_type == "work_units" else "operations"
+	BOSSBridge.patch("/lean/station/view-state/%d" % station_id, {"overlay": api_overlay})
+	_show_station_overlay(station, overlay_type, card_x, card_top)
 
 
 func _rebuild_output_placeholder(top: float, h: float) -> void:
