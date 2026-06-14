@@ -35,6 +35,7 @@ var _line_h: int = LINE_H_MIN
 const INTAKE_QUEUE_SCENE := preload("res://scenes/entities/IntakeQueue.tscn")
 const HOPPER_SCENE       := preload("res://scenes/entities/Hopper.tscn")
 const STATION_SCENE      := preload("res://scenes/entities/Station.tscn")
+const OUTPUT_SCENE       := preload("res://scenes/entities/Output.tscn")
 const OVERLAY_SCENE      := preload("res://scenes/entities/StationOverlay.tscn")
 
 ## Emitted to FactoryFloor to initiate a drag-move flow.
@@ -256,9 +257,15 @@ func _rebuild_intake_queues(top: float, _h: float) -> void:
 	var card_h := 2.0 * TILE_SIZE
 
 	if intake_queues.is_empty():
-		# Empty placeholder with section label.
-		_add_placeholder(_sections, SECTION_PAD, top, card_w, card_h,
-				Palette.BLUE_FILL, "Intake\n(empty)")
+		# Empty placeholder — a plain label-only node.
+		var lbl := Label.new()
+		lbl.position = Vector2(SECTION_PAD + 4, top + 4)
+		lbl.size = Vector2(card_w - 8, card_h - 8)
+		lbl.text = "Intake\n(empty)"
+		lbl.add_theme_color_override("font_color", LABEL_COLOR)
+		lbl.add_theme_font_size_override("font_size", FONT_SIZE)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_sections.add_child(lbl)
 		return
 
 	# Stack intake queues vertically from CONTENT_TOP downward.
@@ -358,31 +365,13 @@ func _on_overlay_requested(station: Node2D, overlay_type: String,
 
 
 func _rebuild_output_placeholder(top: float, h: float) -> void:
-	var has_output: bool = _data.get("hasOutput", true)
-	if not has_output:
+	if not _data.get("hasOutput", true):
 		return
 	var n: int = (_data.get("stations", []) as Array).size()
 	var x := INTAKE_W + HOPPER_W + n * STATION_W + SECTION_PAD
-	_add_placeholder(_sections, x, top, OUTPUT_W - SECTION_PAD * 2, h,
-		Palette.GREEN_FILL, "Output")
-
-
-func _add_placeholder(parent: Node2D, x: float, y: float, w: float, h: float,
-		color: Color, c_text: String) -> void:
-	var r := ColorRect.new()
-	r.position = Vector2(x, y)
-	r.size = Vector2(w, h)
-	r.color = color
-	parent.add_child(r)
-
-	var lbl := Label.new()
-	lbl.position = Vector2(x + 4, y + 4)
-	lbl.size = Vector2(w - 8, h - 8)
-	lbl.text = c_text
-	lbl.add_theme_color_override("font_color", LABEL_COLOR)
-	lbl.add_theme_font_size_override("font_size", FONT_SIZE)
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	parent.add_child(lbl)
+	var output := OUTPUT_SCENE.instantiate()
+	_sections.add_child(output)
+	output.configure(x, top, OUTPUT_W - SECTION_PAD * 2, h)
 
 
 func _rebuild_conveyors() -> void:

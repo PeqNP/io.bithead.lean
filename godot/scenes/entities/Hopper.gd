@@ -17,7 +17,10 @@ var _data: Dictionary = {}       # Line-level data (for hopperWorkUnit)
 var _card_w: float = 0.0
 var _card_h: float = 0.0
 
-@onready var _start_btn: Button = $StartButton
+@onready var _layout:     VBoxContainer = $Layout
+@onready var _name_label: Label         = $Layout/Name
+@onready var _eta_label:  Label         = $Layout/ETA
+@onready var _start_btn:  Button        = $Layout/StartButton
 
 
 func _ready() -> void:
@@ -32,14 +35,28 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	_card_h = card_h
 	position = Vector2(card_x, card_y)
 
+	_layout.position = Vector2(4, 4)
+	_layout.size = Vector2(card_w - 8, card_h - 8)
+
 	var wu = _data.get("hopperWorkUnit", null)
 	if wu != null:
+		_name_label.text = str(wu.get("name", ""))
+		_name_label.add_theme_color_override("font_color", LABEL_COLOR)
+		_eta_label.text = str(wu.get("eta", ""))
+		_eta_label.visible = not _eta_label.text.is_empty()
+		_eta_label.add_theme_color_override("font_color", MUTED_COLOR)
 		_start_btn.show()
-		_start_btn.position = Vector2(4, card_h - 26)
-		_start_btn.size = Vector2(card_w - 8, 20)
 		_start_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	else:
+		_name_label.text = "Hopper"
+		_name_label.add_theme_color_override("font_color", MUTED_COLOR)
+		_eta_label.text = "Empty"
+		_eta_label.visible = true
+		_eta_label.add_theme_color_override("font_color", MUTED_COLOR)
 		_start_btn.hide()
+
+	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
+	_eta_label.add_theme_font_size_override("font_size", SMALL_FONT)
 
 	queue_redraw()
 
@@ -47,21 +64,6 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 func _draw() -> void:
 	draw_rect(Rect2(0, 0, _card_w, _card_h), FILL_COLOR)
 	draw_rect(Rect2(0, 0, _card_w, _card_h), BORDER_COLOR, false, BORDER_WIDTH)
-
-	var wu = _data.get("hopperWorkUnit", null)
-	if wu != null:
-		var c_name: String = str(wu.get("name", ""))
-		draw_string(ThemeDB.fallback_font, Vector2(4, 13), c_name,
-			HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, FONT_SIZE, LABEL_COLOR)
-		var eta: String = str(wu.get("eta", ""))
-		if not eta.is_empty():
-			draw_string(ThemeDB.fallback_font, Vector2(4, 26), eta,
-				HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, SMALL_FONT, MUTED_COLOR)
-	else:
-		draw_string(ThemeDB.fallback_font, Vector2(4, 13), "Hopper",
-			HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, FONT_SIZE, MUTED_COLOR)
-		draw_string(ThemeDB.fallback_font, Vector2(4, 26), "Empty",
-			HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, SMALL_FONT, MUTED_COLOR)
 
 
 func _on_start_pressed() -> void:

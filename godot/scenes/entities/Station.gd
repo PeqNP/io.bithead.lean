@@ -27,7 +27,6 @@ var _card_h: float = 0.0
 @onready var _layout:      VBoxContainer = $Layout
 @onready var _name_label:  Label         = $Layout/Name
 @onready var _cycle_label: Label         = $Layout/CycleTime
-@onready var _wu_label:    Label         = $Layout/WUCount
 @onready var _wu_btn:      Button        = $Layout/Buttons/WUButton
 @onready var _ops_btn:     Button        = $Layout/Buttons/OpsButton
 
@@ -59,11 +58,7 @@ func configure(data: Dictionary, station_index: int,
 	_cycle_label.add_theme_font_size_override("font_size", SMALL_FONT)
 
 	var wu_count: int = (data.get("workUnits", []) as Array).size()
-	_wu_label.visible = wu_count > 0
-	_wu_label.text = "%d WU" % wu_count if wu_count > 0 else ""
-	_wu_label.add_theme_color_override("font_color", LABEL_COLOR)
-	_wu_label.add_theme_font_size_override("font_size", SMALL_FONT)
-
+	_wu_btn.text = "WUs (%d)" % wu_count
 	_wu_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	_ops_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 

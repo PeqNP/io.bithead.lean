@@ -23,6 +23,14 @@ BOSSBridge="*res://autoload/BOSSBridge.gd"
 
 3d/physics_engine="Jolt Physics"
 
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/size/resizable=true
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
 [rendering]
 
 rendering_device/driver.windows="d3d12"

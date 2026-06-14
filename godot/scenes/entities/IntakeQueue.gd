@@ -16,6 +16,10 @@ var _data: Dictionary = {}
 var _card_w: float = 0.0
 var _card_h: float = 0.0
 
+@onready var _layout:      VBoxContainer = $Layout
+@onready var _name_label:  Label         = $Layout/Name
+@onready var _cycle_label: Label         = $Layout/CycleTime
+
 
 ## Place and populate this card.
 ## card_x/y are in Line-local pixel coordinates.
@@ -25,6 +29,19 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	_card_w = card_w
 	_card_h = card_h
 	position = Vector2(card_x, card_y)
+
+	_layout.position = Vector2(4, 4)
+	_layout.size = Vector2(card_w - 8, card_h - 8)
+
+	_name_label.text = str(data.get("name", ""))
+	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
+	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
+
+	var cycle: int = int(data.get("cycleTime", 0))
+	_cycle_label.text = "Cycle: %d" % cycle
+	_cycle_label.add_theme_color_override("font_color", LABEL_COLOR)
+	_cycle_label.add_theme_font_size_override("font_size", SMALL_FONT)
+
 	queue_redraw()
 
 
@@ -36,18 +53,8 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, _card_w, _card_h), fill)
 	draw_rect(Rect2(0, 0, _card_w, _card_h), border, false, BORDER_WIDTH)
 
-	# Name
-	var c_name: String = str(_data.get("name", ""))
-	draw_string(ThemeDB.fallback_font, Vector2(4, 13), c_name,
-		HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, FONT_SIZE, LABEL_COLOR)
-
-	# Cycle time
-	var cycle: int = _data.get("cycleTime", 0)
-	draw_string(ThemeDB.fallback_font, Vector2(4, 26), "Cycle: %d" % cycle,
-		HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, SMALL_FONT, LABEL_COLOR)
-
-	# Mix ratio bar at bottom
-	var ratio: int = _data.get("mixRatio", 0)
+	# Mix ratio bar at bottom — custom geometry driven by server data.
+	var ratio: int = int(_data.get("mixRatio", 0))
 	if ratio > 0:
 		var bar_w := (_card_w - 8) * ratio / 100.0
 		draw_rect(Rect2(4, _card_h - 6, bar_w, 4), border.lightened(0.3))

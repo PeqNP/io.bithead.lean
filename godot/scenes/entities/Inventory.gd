@@ -38,12 +38,15 @@ var _area: Area2D
 var _col_shape: RectangleShape2D
 
 var _stock_panel: Node2D = null
-var _stock_btn: Button = null
 var _stock_open: bool = false
 
-@onready var _label:        Label     = $Label
-@onready var _health_strip: ColorRect = $HealthStrip
-@onready var _controls:     Node2D    = $Controls
+@onready var _name_label:   Label         = $Name
+@onready var _health_strip: ColorRect     = $HealthStrip
+@onready var _stock_btn:    Button        = $StockButton
+@onready var _controls:     VBoxContainer = $Controls
+@onready var _move_btn:     Button        = $Controls/MoveButton
+@onready var _focus_btn:    Button        = $Controls/FocusButton
+@onready var _lock_btn:     Button        = $Controls/LockButton
 
 
 func _ready() -> void:
@@ -68,13 +71,15 @@ func _ready() -> void:
 	_stock_panel.hide()
 	add_child(_stock_panel)
 
-	_stock_btn = Button.new()
-	_stock_btn.text = "Stock ▼"
-	_stock_btn.position = Vector2(2, INV_H - 15)
-	_stock_btn.size = Vector2(INV_W - 4, 13)
 	_stock_btn.add_theme_font_size_override("font_size", 8)
 	_stock_btn.pressed.connect(_on_stock_pressed)
-	add_child(_stock_btn)
+
+	_move_btn.add_theme_font_size_override("font_size", 9)
+	_focus_btn.add_theme_font_size_override("font_size", 9)
+	_lock_btn.add_theme_font_size_override("font_size", 9)
+	_move_btn.pressed.connect(_on_move_pressed)
+	_focus_btn.pressed.connect(_on_focus_pressed)
+	_lock_btn.pressed.connect(_on_lock_pressed)
 
 
 func _input(event: InputEvent) -> void:
@@ -95,9 +100,9 @@ func configure(data: Dictionary) -> void:
 		data.get("gridY", 0) * TILE_SIZE
 	)
 
-	_label.text = str(data.get("name", ""))
-	_label.add_theme_color_override("font_color", LABEL_COLOR)
-	_label.add_theme_font_size_override("font_size", FONT_SIZE)
+	_name_label.text = str(data.get("name", ""))
+	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
+	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
 
 	var health: int = data.get("health", 0)
 	if HEALTH_COLORS.has(health):
@@ -108,7 +113,7 @@ func configure(data: Dictionary) -> void:
 
 	if _stock_panel != null:
 		_stock_panel.configure(data)
-	_rebuild_controls()
+	_update_controls()
 	queue_redraw()
 
 
@@ -128,7 +133,7 @@ func set_grayed(grayed: bool) -> void:
 ## Called by FactoryFloor when camera zoom index changes.
 ## zi: 0=100% 1=75% 2=50% 3=25%
 func set_zoom_index(zi: int) -> void:
-	_label.visible = (zi < 3)
+	_name_label.visible = (zi < 3)
 
 
 ## Returns the physics RID of this Inventory's Area2D, used for DragOverlay placement queries.
@@ -158,33 +163,11 @@ func _set_hovered(hovered: bool) -> void:
 	_controls.visible = hovered
 
 
-func _rebuild_controls() -> void:
-	for child in _controls.get_children():
-		child.queue_free()
-
-	var move_btn := _make_ctrl_button("Move", Vector2(2, 2))
-	move_btn.disabled = _locked
-	move_btn.pressed.connect(_on_move_pressed)
-	_controls.add_child(move_btn)
-
-	var focus_btn := _make_ctrl_button("Unfocus" if _focused else "Focus", Vector2(2, 26))
-	focus_btn.pressed.connect(_on_focus_pressed.bind(focus_btn))
-	_controls.add_child(focus_btn)
-
-	var lock_btn := _make_ctrl_button("Unlock" if _locked else "Lock", Vector2(2, 50))
-	lock_btn.pressed.connect(_on_lock_pressed.bind(lock_btn, move_btn))
-	_controls.add_child(lock_btn)
-
+func _update_controls() -> void:
+	_move_btn.disabled = _locked
+	_focus_btn.text = "Unfocus" if _focused else "Focus"
+	_lock_btn.text = "Unlock" if _locked else "Lock"
 	_controls.visible = _hovered
-
-
-func _make_ctrl_button(c_text: String, pos: Vector2) -> Button:
-	var btn := Button.new()
-	btn.text = c_text
-	btn.position = pos
-	btn.size = Vector2(INV_W - 4, 20)
-	btn.add_theme_font_size_override("font_size", 9)
-	return btn
 
 
 func _on_move_pressed() -> void:
@@ -193,17 +176,17 @@ func _on_move_pressed() -> void:
 	move_requested.emit(self, 2, 2)
 
 
-func _on_focus_pressed(btn: Button) -> void:
+func _on_focus_pressed() -> void:
 	_focused = !_focused
-	btn.text = "Unfocus" if _focused else "Focus"
+	_focus_btn.text = "Unfocus" if _focused else "Focus"
 	focus_toggled.emit(_entity_id, _focused)
 	queue_redraw()
 
 
-func _on_lock_pressed(lock_btn: Button, move_btn: Button) -> void:
+func _on_lock_pressed() -> void:
 	_locked = !_locked
-	lock_btn.text = "Unlock" if _locked else "Lock"
-	move_btn.disabled = _locked
+	_lock_btn.text = "Unlock" if _locked else "Lock"
+	_move_btn.disabled = _locked
 	lock_toggled.emit(_entity_id, _locked)
 
 

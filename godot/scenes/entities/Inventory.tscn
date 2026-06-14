@@ -1,11 +1,11 @@
-[gd_scene load_steps=2 format=3 uid="uid://inventory_entity_001"]
+[gd_scene format=3 uid="uid://inventory_entity_001"]
 
 [ext_resource type="Script" path="res://scenes/entities/Inventory.gd" id="1_inv"]
 
 [node name="Inventory" type="Node2D"]
 script = ExtResource("1_inv")
 
-[node name="Label" type="Label" parent="."]
+[node name="Name" type="Label" parent="."]
 offset_left = 6.0
 offset_top = 6.0
 offset_right = 122.0
@@ -19,5 +19,29 @@ offset_right = 128.0
 offset_bottom = 128.0
 visible = false
 
-[node name="Controls" type="Node2D" parent="."]
+[node name="StockButton" type="Button" parent="."]
+offset_left = 2.0
+offset_top = 113.0
+offset_right = 126.0
+offset_bottom = 126.0
+text = "Stock ▼"
+
+[node name="Controls" type="VBoxContainer" parent="."]
+offset_left = 2.0
+offset_top = 2.0
+offset_right = 126.0
+offset_bottom = 74.0
 visible = false
+theme_override_constants/separation = 4
+
+[node name="MoveButton" type="Button" parent="Controls"]
+text = "Move"
+size_flags_horizontal = 3
+
+[node name="FocusButton" type="Button" parent="Controls"]
+text = "Focus"
+size_flags_horizontal = 3
+
+[node name="LockButton" type="Button" parent="Controls"]
+text = "Lock"
+size_flags_horizontal = 3
