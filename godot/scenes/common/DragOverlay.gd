@@ -28,9 +28,13 @@ var _valid: bool = false
 ## Full-screen input blocker: shown during drag to prevent button/control interaction.
 var _input_blocker: ColorRect = null
 
+@onready var _pos_label: Label = $PosLabel
+
 func _ready() -> void:
 	z_index = 100
 	set_process(false)
+	_pos_label.add_theme_font_size_override("font_size", 11)
+	_pos_label.add_theme_color_override("font_color", Palette.FG_1)
 
 	# CanvasLayer at a high layer so its child Control sits above all entities.
 	var blocker_layer := CanvasLayer.new()
@@ -110,6 +114,9 @@ func _process(_delta: float) -> void:
 	_ghost_params.transform = Transform2D(0.0, snap_pos + Vector2(_px_w, _px_h) * 0.5)
 	_valid = get_world_2d().direct_space_state.intersect_shape(_ghost_params, 1).is_empty()
 
+	_pos_label.text = "(%d, %d)" % [_snap_tile.x, _snap_tile.y]
+	_pos_label.position = Vector2(_snap_tile.x * TILE_SIZE, _snap_tile.y * TILE_SIZE - 16)
+
 	queue_redraw()
 
 
@@ -122,12 +129,6 @@ func _draw() -> void:
 		_px_w, _px_h
 	)
 	draw_rect(ghost_rect, COLOR_GHOST)
-
-	# Position label — top-left, just above the ghost.
-	var label := "(%d, %d)" % [_snap_tile.x, _snap_tile.y]
-	var label_pos := Vector2(_snap_tile.x * TILE_SIZE, _snap_tile.y * TILE_SIZE - 4)
-	draw_string(ThemeDB.fallback_font, label_pos, label,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Palette.FG_1)
 
 	# Tile-by-tile availability highlight, clipped to the entity's actual pixel bounds.
 	var col := COLOR_AVAIL if _valid else COLOR_OCCUPIED

@@ -7,7 +7,8 @@
 
 extends Node2D
 
-const CARD_SCENE      := preload("res://scenes/entities/WorkUnitCard/WorkUnitCard.tscn")
+const CARD_SCENE          := preload("res://scenes/entities/WorkUnitCard/WorkUnitCard.tscn")
+const OPERATION_ROW_SCENE := preload("res://scenes/entities/OperationRow.tscn")
 const MAX_VISIBLE     := 5        # rows before scroll arrows appear
 const ROW_H           := 52.0
 const PAD             :=  4.0
@@ -27,10 +28,11 @@ var _overlay_h: float = 0.0
 var _rows: Array = []            # cached row data for scroll
 var _compact: bool = false       # true at zoom ≤ 50%
 
-@onready var _content:   VBoxContainer = $Content
-@onready var _none_lbl:  Label         = $NoneLabel
-@onready var _up_btn:    Button        = $UpButton
-@onready var _dn_btn:    Button        = $DnButton
+@onready var _content:      VBoxContainer = $Content
+@onready var _none_lbl:     Label         = $NoneLabel
+@onready var _compact_lbl:  Label         = $CompactLabel
+@onready var _up_btn:       Button        = $UpButton
+@onready var _dn_btn:       Button        = $DnButton
 
 
 func _ready() -> void:
@@ -77,6 +79,9 @@ func _rebuild() -> void:
 		_content.remove_child(child)
 		child.queue_free()
 
+	_compact_lbl.hide()
+	_content.show()
+
 	_content.position = Vector2(PAD, PAD)
 	_content.size = Vector2(_overlay_w - PAD * 2, 0)
 
@@ -105,13 +110,14 @@ func _build_work_unit_rows() -> void:
 
 	if _compact:
 		var count := _rows.size()
-		var lbl := Label.new()
-		lbl.text = "%d work unit%s" % [count, "s" if count != 1 else ""]
-		lbl.custom_minimum_size = Vector2(0, ROW_H)
-		lbl.size_flags_horizontal = 3
-		lbl.add_theme_color_override("font_color", MUTED_COLOR)
-		lbl.add_theme_font_size_override("font_size", FONT_SIZE)
-		_content.add_child(lbl)
+		_compact_lbl.text = "%d work unit%s" % [count, "s" if count != 1 else ""]
+		_compact_lbl.custom_minimum_size = Vector2(0, ROW_H)
+		_compact_lbl.size_flags_horizontal = 3
+		_compact_lbl.add_theme_color_override("font_color", MUTED_COLOR)
+		_compact_lbl.add_theme_font_size_override("font_size", FONT_SIZE)
+		_compact_lbl.position = Vector2(PAD, PAD + 4)
+		_compact_lbl.show()
+		_content.hide()
 		return
 
 	var visible_rows := _rows.slice(_scroll_offset,
@@ -131,13 +137,9 @@ func _build_operations_rows() -> void:
 
 
 func _add_ops_row(key: String, c_name: String) -> void:
-	var lbl := Label.new()
-	lbl.text = "%s  %s" % [key, c_name] if not key.is_empty() else c_name
-	lbl.custom_minimum_size = Vector2(0, 24)
-	lbl.size_flags_horizontal = 3
-	lbl.add_theme_color_override("font_color", LABEL_COLOR)
-	lbl.add_theme_font_size_override("font_size", FONT_SIZE)
-	_content.add_child(lbl)
+	var row := OPERATION_ROW_SCENE.instantiate() as OperationRow
+	row.configure(key, c_name)
+	_content.add_child(row)
 
 
 func _scroll(direction: int) -> void:

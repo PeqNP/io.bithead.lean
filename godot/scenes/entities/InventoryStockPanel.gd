@@ -21,57 +21,82 @@ const HEALTH_COLORS := {
 	3: Palette.RED,
 }
 
-var _rows: Array = []      # Array of {label: String, value: String}
 var _health_color: Color = Color(0, 0, 0, 0)
 var _panel_h: float = 0.0
+
+@onready var _rows_container:   VBoxContainer = $Rows
+@onready var _cycle_row:        HBoxContainer = $Rows/CycleStockRow
+@onready var _cycle_val:        Label         = $Rows/CycleStockRow/ValueLabel
+@onready var _buffer_row:       HBoxContainer = $Rows/BufferStockRow
+@onready var _buffer_val:       Label         = $Rows/BufferStockRow/ValueLabel
+@onready var _safety_row:       HBoxContainer = $Rows/SafetyStockRow
+@onready var _safety_val:       Label         = $Rows/SafetyStockRow/ValueLabel
+@onready var _reorder_pt_row:   HBoxContainer = $Rows/ReorderPointRow
+@onready var _reorder_pt_val:   Label         = $Rows/ReorderPointRow/ValueLabel
+@onready var _reorder_date_row: HBoxContainer = $Rows/ReorderDateRow
+@onready var _reorder_date_val: Label         = $Rows/ReorderDateRow/ValueLabel
+
+
+func _ready() -> void:
+	_rows_container.size = Vector2(PANEL_W - PAD * 2, ROW_H * 5)
+
+	var all_rows := [_cycle_row, _buffer_row, _safety_row, _reorder_pt_row, _reorder_date_row]
+	var name_labels: Array[Label] = [
+		$Rows/CycleStockRow/NameLabel,
+		$Rows/BufferStockRow/NameLabel,
+		$Rows/SafetyStockRow/NameLabel,
+		$Rows/ReorderPointRow/NameLabel,
+		$Rows/ReorderDateRow/NameLabel,
+	]
+	var val_labels: Array[Label] = [_cycle_val, _buffer_val, _safety_val, _reorder_pt_val, _reorder_date_val]
+
+	for row in all_rows:
+		row.hide()
+		row.custom_minimum_size = Vector2(0, ROW_H)
+	for lbl in name_labels:
+		lbl.size_flags_horizontal = 3
+		lbl.add_theme_color_override("font_color", MUTED_COLOR)
+		lbl.add_theme_font_size_override("font_size", FONT_SIZE)
+	for lbl in val_labels:
+		lbl.size_flags_horizontal = 3
+		lbl.add_theme_color_override("font_color", LABEL_COLOR)
+		lbl.add_theme_font_size_override("font_size", FONT_SIZE)
 
 
 ## Populate from a LeanFragment.FactoryFloor.Inventory dictionary.
 func configure(data: Dictionary) -> void:
-	_rows.clear()
 	_health_color = Color(0, 0, 0, 0)
-
-	_add_row("Cycle Stock",   data.get("cycleStock"))
-	_add_row("Buffer Stock",  data.get("bufferStockLevel"))
-	_add_row("Safety Stock",  data.get("safetyStockLevel"))
-	_add_row("Reorder Point", data.get("reorderPoint"))
-	_add_row("Reorder Date",  data.get("estimatedReorderDate"))
-
 	var health_idx = data.get("health")
 	if health_idx != null and HEALTH_COLORS.has(int(health_idx)):
 		_health_color = HEALTH_COLORS[int(health_idx)]
 
-	_panel_h = PAD + _rows.size() * ROW_H + PAD + (4.0 if _health_color.a > 0 else 0.0)
+	var health_h := 4.0 if _health_color.a > 0 else 0.0
+	_rows_container.position = Vector2(PAD, PAD + health_h)
+
+	_panel_h = PAD + health_h
+	_panel_h += _configure_row(_cycle_row, _cycle_val, data.get("cycleStock"))
+	_panel_h += _configure_row(_buffer_row, _buffer_val, data.get("bufferStockLevel"))
+	_panel_h += _configure_row(_safety_row, _safety_val, data.get("safetyStockLevel"))
+	_panel_h += _configure_row(_reorder_pt_row, _reorder_pt_val, data.get("reorderPoint"))
+	_panel_h += _configure_row(_reorder_date_row, _reorder_date_val, data.get("estimatedReorderDate"))
+	_panel_h += PAD
+
 	queue_redraw()
 
 
-func _add_row(label: String, value) -> void:
+func _configure_row(row: HBoxContainer, val_lbl: Label, value) -> float:
 	if value == null:
-		return
-	_rows.append({"label": label, "value": str(value)})
+		row.hide()
+		return 0.0
+	val_lbl.text = str(value)
+	row.show()
+	return ROW_H
 
 
 func _draw() -> void:
-	if _rows.is_empty() and _health_color.a == 0:
+	if _panel_h <= PAD * 2:
 		return
-
-	var font := ThemeDB.fallback_font
-	var actual_h := PAD + _rows.size() * ROW_H + PAD + (4.0 if _health_color.a > 0 else 0.0)
-
-	# Panel background + border.
-	draw_rect(Rect2(0, 0, PANEL_W, actual_h), FILL_COLOR)
-	draw_rect(Rect2(0, 0, PANEL_W, actual_h), BORDER_COLOR, false, 1.5)
-
-	# Health color strip at top.
+	draw_rect(Rect2(0, 0, PANEL_W, _panel_h), FILL_COLOR)
+	draw_rect(Rect2(0, 0, PANEL_W, _panel_h), BORDER_COLOR, false, 1.5)
 	if _health_color.a > 0:
 		draw_rect(Rect2(0, 0, PANEL_W, 4.0), _health_color)
-
-	var y_start := PAD + (4.0 if _health_color.a > 0 else 0.0)
-	for i in _rows.size():
-		var y := y_start + i * ROW_H + ROW_H - 4.0   # baseline
-		var label: String = _rows[i]["label"]
-		var value: String = _rows[i]["value"]
-		draw_string(font, Vector2(PAD, y), label + ":", HORIZONTAL_ALIGNMENT_LEFT,
-			PANEL_W / 2.0 - PAD, FONT_SIZE, MUTED_COLOR)
-		draw_string(font, Vector2(PANEL_W / 2.0, y), value, HORIZONTAL_ALIGNMENT_LEFT,
-			PANEL_W / 2.0 - PAD, FONT_SIZE, LABEL_COLOR)

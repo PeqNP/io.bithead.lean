@@ -90,7 +90,7 @@ static func style_button(btn: Button, accent: Color) -> void:
 	var make_sb := func(c: Color) -> StyleBoxFlat:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = c
-		sb.set_corner_radius_all(3)
+		sb.set_corner_radius_all(0)
 		sb.content_margin_left   = 4.0
 		sb.content_margin_right  = 4.0
 		sb.content_margin_top    = 4.0

@@ -56,10 +56,14 @@ var _col_shape: RectangleShape2D
 
 var _overlays: Array[Node] = []  # StationOverlay instances, one per station
 
-@onready var _label:     Label  = $Label
-@onready var _sections:  Node2D = $Sections
-@onready var _conveyors: Node2D = $Conveyors
-@onready var _controls:  Node2D = $Controls
+@onready var _label:            Label  = $Label
+@onready var _sections:         Node2D = $Sections
+@onready var _conveyors:        Node2D = $Conveyors
+@onready var _controls:         Node2D = $Controls
+@onready var _move_btn:         Button = $Controls/MoveButton
+@onready var _focus_btn:        Button = $Controls/FocusButton
+@onready var _lock_btn:         Button = $Controls/LockButton
+@onready var _intake_empty_lbl: Label  = $IntakeEmptyLabel
 
 
 func _ready() -> void:
@@ -76,6 +80,20 @@ func _ready() -> void:
 	_area.monitorable     = true
 	_area.add_child(col)
 	add_child(_area)
+
+	# Wire control buttons once — _rebuild_controls only repositions them.
+	for btn in [_move_btn, _focus_btn, _lock_btn]:
+		btn.add_theme_font_size_override("font_size", 10)
+	_move_btn.pressed.connect(_on_move_pressed)
+	_focus_btn.pressed.connect(_on_focus_pressed)
+	_lock_btn.pressed.connect(_on_lock_pressed)
+
+	# Position intake-empty label — CONTENT_TOP is always the top value used.
+	var intake_card_w := float(INTAKE_W - SECTION_PAD * 2)
+	_intake_empty_lbl.position = Vector2(SECTION_PAD + 4, CONTENT_TOP + 4)
+	_intake_empty_lbl.custom_minimum_size = Vector2(intake_card_w - 8, 0)
+	_intake_empty_lbl.add_theme_color_override("font_color", LABEL_COLOR)
+	_intake_empty_lbl.add_theme_font_size_override("font_size", FONT_SIZE)
 
 
 func _input(event: InputEvent) -> void:
@@ -183,36 +201,14 @@ func _set_hovered(hovered: bool) -> void:
 
 
 func _rebuild_controls() -> void:
-	for child in _controls.get_children():
-		child.queue_free()
-
 	var btn_y := int(BORDER_WIDTH) + 2
-
-	var move_btn := _make_ctrl_button("Move", Vector2(_line_w - 190, btn_y))
-	move_btn.disabled = _locked
-	move_btn.pressed.connect(_on_move_pressed)
-	_controls.add_child(move_btn)
-
-	var focus_btn := _make_ctrl_button("Unfocus" if _focused else "Focus",
-		Vector2(_line_w - 136, btn_y))
-	focus_btn.pressed.connect(_on_focus_pressed.bind(focus_btn))
-	_controls.add_child(focus_btn)
-
-	var lock_btn := _make_ctrl_button("Unlock" if _locked else "Lock",
-		Vector2(_line_w - 78, btn_y))
-	lock_btn.pressed.connect(_on_lock_pressed.bind(lock_btn, move_btn))
-	_controls.add_child(lock_btn)
-
+	_move_btn.position = Vector2(_line_w - 190, btn_y)
+	_move_btn.disabled = _locked
+	_focus_btn.position = Vector2(_line_w - 136, btn_y)
+	_focus_btn.text = "Unfocus" if _focused else "Focus"
+	_lock_btn.position = Vector2(_line_w - 78, btn_y)
+	_lock_btn.text = "Unlock" if _locked else "Lock"
 	_controls.visible = _hovered
-
-
-func _make_ctrl_button(c_text: String, pos: Vector2) -> Button:
-	var btn := Button.new()
-	btn.text = c_text
-	btn.position = pos
-	btn.size = Vector2(54, 20)
-	btn.add_theme_font_size_override("font_size", 10)
-	return btn
 
 
 func _on_move_pressed() -> void:
@@ -221,17 +217,17 @@ func _on_move_pressed() -> void:
 	move_requested.emit(self, tile_w(), tile_h())
 
 
-func _on_focus_pressed(btn: Button) -> void:
+func _on_focus_pressed() -> void:
 	_focused = !_focused
-	btn.text = "Unfocus" if _focused else "Focus"
+	_focus_btn.text = "Unfocus" if _focused else "Focus"
 	focus_toggled.emit(_entity_id, _focused)
 	queue_redraw()
 
 
-func _on_lock_pressed(lock_btn: Button, move_btn: Button) -> void:
+func _on_lock_pressed() -> void:
 	_locked = !_locked
-	lock_btn.text = "Unlock" if _locked else "Lock"
-	move_btn.disabled = _locked
+	_lock_btn.text = "Unlock" if _locked else "Lock"
+	_move_btn.disabled = _locked
 	lock_toggled.emit(_entity_id, _locked)
 
 
@@ -258,16 +254,9 @@ func _rebuild_intake_queues(top: float, _h: float) -> void:
 	var card_h := 2.0 * TILE_SIZE
 
 	if intake_queues.is_empty():
-		# Empty placeholder — a plain label-only node.
-		var lbl := Label.new()
-		lbl.position = Vector2(SECTION_PAD + 4, top + 4)
-		lbl.size = Vector2(card_w - 8, card_h - 8)
-		lbl.text = "Intake\n(empty)"
-		lbl.add_theme_color_override("font_color", LABEL_COLOR)
-		lbl.add_theme_font_size_override("font_size", FONT_SIZE)
-		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_sections.add_child(lbl)
+		_intake_empty_lbl.show()
 		return
+	_intake_empty_lbl.hide()
 
 	# Stack intake queues vertically from CONTENT_TOP downward.
 	for i in intake_queues.size():

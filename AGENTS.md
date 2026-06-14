@@ -114,13 +114,27 @@ All dates, cycle times, and ETAs are formatted **server-side**. Godot displays s
 Every reusable entity or card (Station, Hopper, IntakeQueue, Inventory, Line, etc.) must:
 - Have its own `.tscn` scene file
 - Use Godot node types (`Label`, `Button`, `VBoxContainer`, `HBoxContainer`, `Control`, etc.) for all visible elements
-- **Never** draw labels, buttons, or text in `_draw()` or `draw_string()` calls
+- **Never** create UI nodes dynamically in GDScript
+
+| Forbidden pattern | Correct pattern |
+|---|---|
+| `Label.new()` | Declare `Label` node in `.tscn`; wire with `@onready` |
+| `Button.new()` | Declare `Button` node in `.tscn`; wire with `@onready` |
+| `draw_string(...)` in `_draw()` | Declare `Label` node in `.tscn`; update `.text` in `_process()` or `configure()` |
+
+**Exception**: `_draw()` may use `draw_string` only for text that is inseparable from a geometric drawing operation — e.g. avatar initials drawn inside a `draw_circle` (see `Assignees.gd`).
 
 The only legitimate uses of `_draw()` are:
 - Custom geometry (rectangles, lines, polygons) whose color comes from runtime/server data (e.g. per-station accent color)
 - Conveyor belt chevrons
+- Avatar initials rendered inside drawn circles
 
 If you believe `draw_string` is necessary, **ask first**.
+
+### Signal connections — connect once, reposition on rebuild
+Signals for `.tscn`-declared buttons must be connected **once** in `_ready()`. Functions that run on every poll/refresh (e.g. `_rebuild_controls()`, `configure()`) must only reposition, restyle, show, or hide existing nodes — never `queue_free()` existing nodes and re-add them.
+
+Violating this rule causes doubled signal connections and unnecessary churn. New code that reaches for `queue_free()` + `add_child()` inside a rebuild function is a red flag — use `show()`/`hide()` and update properties instead.
 
 ### Container layout conventions
 - Name label + secondary info → `VBoxContainer`
@@ -140,7 +154,7 @@ If you believe `draw_string` is necessary, **ask first**.
 - Use `event.is_command_or_control_pressed()` — covers both macOS and Windows/Linux
 
 ### Drag position label
-The `(x, y)` tile coordinate label during drag is drawn via `draw_string` in `DragOverlay._draw()`, positioned 4 px above the ghost's top-left corner. There is no `$PosLabel` node.
+The `(x, y)` tile coordinate label during drag is rendered via a `$PosLabel` `Label` node declared in `DragOverlay.tscn`. Its `.text` and `.position` are updated in `_process()`. There is no `draw_string` call in `DragOverlay._draw()`.
 
 ### JavaScriptBridge — never use `eval`
 All JavaScript interop must use `JavaScriptBridge.get_interface()` and `JavaScriptBridge.create_object()`. Never use `JavaScriptBridge.eval()`.

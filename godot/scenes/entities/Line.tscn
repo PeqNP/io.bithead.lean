@@ -15,3 +15,23 @@ offset_bottom = 20.0
 
 [node name="Controls" type="Node2D" parent="."]
 visible = false
+
+[node name="MoveButton" type="Button" parent="Controls"]
+text = "Move"
+offset_right = 54.0
+offset_bottom = 20.0
+
+[node name="FocusButton" type="Button" parent="Controls"]
+text = "Focus"
+offset_right = 54.0
+offset_bottom = 20.0
+
+[node name="LockButton" type="Button" parent="Controls"]
+text = "Lock"
+offset_right = 54.0
+offset_bottom = 20.0
+
+[node name="IntakeEmptyLabel" type="Label" parent="."]
+text = "Intake\n(empty)"
+autowrap_mode = 3
+visible = false
