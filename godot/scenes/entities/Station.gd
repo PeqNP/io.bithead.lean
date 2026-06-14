@@ -24,8 +24,12 @@ var _station_index: int = 0
 var _card_w: float = 0.0
 var _card_h: float = 0.0
 
-@onready var _wu_btn:  Button = $WUButton
-@onready var _ops_btn: Button = $OpsButton
+@onready var _layout:      VBoxContainer = $Layout
+@onready var _name_label:  Label         = $Layout/Name
+@onready var _cycle_label: Label         = $Layout/CycleTime
+@onready var _wu_label:    Label         = $Layout/WUCount
+@onready var _wu_btn:      Button        = $Layout/Buttons/WUButton
+@onready var _ops_btn:     Button        = $Layout/Buttons/OpsButton
 
 
 func _ready() -> void:
@@ -41,14 +45,26 @@ func configure(data: Dictionary, station_index: int,
 	_card_h = card_h
 	position = Vector2(card_x, card_y)
 
-	# Position buttons at the bottom of the card.
-	var btn_w := (card_w - 8) / 2.0
-	_wu_btn.position  = Vector2(4, card_h - 26)
-	_wu_btn.size      = Vector2(btn_w, 20)
-	_wu_btn.add_theme_font_size_override("font_size", SMALL_FONT)
+	_layout.position = Vector2(4, 4)
+	_layout.size = Vector2(card_w - 8, card_h - 8)
 
-	_ops_btn.position = Vector2(4 + btn_w + 2, card_h - 26)
-	_ops_btn.size     = Vector2(btn_w, 20)
+	_name_label.text = str(data.get("name", "Station"))
+	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
+	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
+
+	var cycle = data.get("cycleTime", null)
+	_cycle_label.visible = cycle != null
+	_cycle_label.text = "Cycle: %d" % int(cycle) if cycle != null else ""
+	_cycle_label.add_theme_color_override("font_color", MUTED_COLOR)
+	_cycle_label.add_theme_font_size_override("font_size", SMALL_FONT)
+
+	var wu_count: int = (data.get("workUnits", []) as Array).size()
+	_wu_label.visible = wu_count > 0
+	_wu_label.text = "%d WU" % wu_count if wu_count > 0 else ""
+	_wu_label.add_theme_color_override("font_color", LABEL_COLOR)
+	_wu_label.add_theme_font_size_override("font_size", SMALL_FONT)
+
+	_wu_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	_ops_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 
 	queue_redraw()
@@ -62,23 +78,8 @@ func _draw() -> void:
 	var color_data = _data.get("color", null)
 	var fill   := _parse_color(color_data, "fill",   FILL_COLOR)
 	var border := _parse_color(color_data, "border", BORDER_COLOR)
-
 	draw_rect(Rect2(0, 0, _card_w, _card_h), fill)
 	draw_rect(Rect2(0, 0, _card_w, _card_h), border, false, BORDER_WIDTH)
-
-	var c_name: String = str(_data.get("name", "Station"))
-	draw_string(ThemeDB.fallback_font, Vector2(4, 13), c_name,
-		HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, FONT_SIZE, LABEL_COLOR)
-
-	var cycle = _data.get("cycleTime", null)
-	if cycle != null:
-		draw_string(ThemeDB.fallback_font, Vector2(4, 26), "Cycle: %d" % int(cycle),
-			HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, SMALL_FONT, MUTED_COLOR)
-
-	var wu_count: int = (_data.get("workUnits", []) as Array).size()
-	if wu_count > 0:
-		draw_string(ThemeDB.fallback_font, Vector2(4, 38), "%d WU" % wu_count,
-			HORIZONTAL_ALIGNMENT_LEFT, _card_w - 8, SMALL_FONT, LABEL_COLOR)
 
 
 func _parse_color(color_data, key: String, fallback: Color) -> Color:

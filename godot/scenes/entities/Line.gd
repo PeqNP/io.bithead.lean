@@ -119,7 +119,8 @@ func configure(data: Dictionary) -> void:
 func _compute_line_w() -> void:
 	var n: int = (_data.get("stations", []) as Array).size()
 	var stations_w: int = max(0, n) * STATION_W
-	_line_w = INTAKE_W + HOPPER_W + stations_w + OUTPUT_W
+	var out_w: int = OUTPUT_W if _data.get("hasOutput", true) else 0
+	_line_w = INTAKE_W + HOPPER_W + stations_w + out_w
 
 
 ## How many tiles wide this Line currently is.
@@ -159,9 +160,18 @@ func _draw() -> void:
 
 	# Section dividers
 	var stations_zone_w := (_data.get("stations", []) as Array).size() * STATION_W
-	for x in [INTAKE_W, INTAKE_W + HOPPER_W, INTAKE_W + HOPPER_W + stations_zone_w]:
+	var dividers := [INTAKE_W, INTAKE_W + HOPPER_W]
+	if _data.get("hasOutput", true):
+		dividers.append(INTAKE_W + HOPPER_W + stations_zone_w)
+	for x in dividers:
 		draw_line(Vector2(x, BORDER_WIDTH), Vector2(x, _line_h - BORDER_WIDTH),
 			border * Color(1, 1, 1, 0.4), 1.0)
+
+	# Output zone border
+	if _data.get("hasOutput", true):
+		var ox := float(INTAKE_W + HOPPER_W + stations_zone_w + SECTION_PAD)
+		draw_rect(Rect2(ox, float(CONTENT_TOP), float(OUTPUT_W - SECTION_PAD * 2), 2.0 * TILE_SIZE),
+			Palette.GREEN, false, BORDER_WIDTH)
 
 
 # ---------------------------------------------------------------------------

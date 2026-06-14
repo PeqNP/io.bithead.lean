@@ -114,7 +114,8 @@ func _render_entities(snapshot: Dictionary) -> void:
 	var incoming: Dictionary = {}
 	for line_data: Dictionary in (snapshot.get("lines", []) as Array):
 		var n_st: int = (line_data.get("stations", []) as Array).size()
-		var tw: int = 8 + n_st * 3   # intake(4)+hopper(2)+n*station(3)+output(2)
+		var has_out: bool = line_data.get("hasOutput", true)
+		var tw: int = (6 if not has_out else 8) + n_st * 3   # intake(4)+hopper(2)+[output(2)]+n*station(3)
 		# th: mirrors Line._compute_line_h(). CONTENT_TOP=60, card_h=128, gap=4, bottom_pad=4.
 		var n_iq: int = max(1, (line_data.get("intakeQueues", []) as Array).size())
 		var raw_h := 60 + n_iq * 128 + (n_iq - 1) * 4 + 4
@@ -342,6 +343,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			zoom_in()
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			zoom_out()
+
+	# Keyboard zoom: Cmd+=/- (macOS) or Ctrl+=/- (Windows/Linux), Cmd/Ctrl+0 resets to 100%.
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.is_command_or_control_pressed():
+			if event.keycode in [KEY_EQUAL, KEY_PLUS]:
+				zoom_in()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_MINUS:
+				zoom_out()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_0:
+				set_zoom(0)
+				_zoom_slider.set_index(_zoom_index)
+				get_viewport().set_input_as_handled()
 
 	# Confirm or cancel drag — now handled in _input above; kept as dead-code guard.
 	if _drag_entity and event is InputEventMouseButton:
