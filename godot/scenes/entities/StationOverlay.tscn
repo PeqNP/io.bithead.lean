@@ -6,7 +6,12 @@
 script = ExtResource("1")
 visible = false
 
-[node name="Content" type="Node2D" parent="."]
+[node name="Content" type="VBoxContainer" parent="."]
+theme_override_constants/separation = 4
+
+[node name="NoneLabel" type="Label" parent="."]
+text = "None"
+visible = false
 
 [node name="UpButton" type="Button" parent="."]
 text = "▲"

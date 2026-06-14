@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://wu_on_hold_btn"]
+
+[ext_resource type="Script" path="res://scenes/entities/WorkUnitCard/OnHoldButton.gd" id="1"]
+
+[node name="OnHoldButton" type="Button"]
+text = "On Hold"
+visible = false
+script = ExtResource("1")

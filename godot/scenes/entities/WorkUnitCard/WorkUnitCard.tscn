@@ -1,0 +1,40 @@
+[gd_scene load_steps=5 format=3 uid="uid://work_unit_card"]
+
+[ext_resource type="Script" path="res://scenes/entities/WorkUnitCard/WorkUnitCard.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/entities/WorkUnitCard/Assignees.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/entities/WorkUnitCard/OperationBars.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/entities/WorkUnitCard/OnHoldButton.tscn" id="4"]
+
+[node name="WorkUnitCard" type="Control"]
+size_flags_horizontal = 3
+script = ExtResource("1")
+
+[node name="Layout" type="VBoxContainer" parent="."]
+theme_override_constants/separation = 1
+
+[node name="Title" type="Label" parent="Layout"]
+clip_text = true
+
+[node name="ETA" type="Label" parent="Layout"]
+clip_text = true
+visible = false
+
+[node name="Assignees" parent="Layout" instance=ExtResource("2")]
+
+[node name="OperationBars" parent="Layout" instance=ExtResource("3")]
+
+[node name="Spacer" type="Control" parent="Layout"]
+size_flags_vertical = 3
+
+[node name="Buttons" type="HBoxContainer" parent="Layout"]
+theme_override_constants/separation = 4
+
+[node name="OpenButton" type="Button" parent="Layout/Buttons"]
+text = "Open"
+size_flags_horizontal = 3
+
+[node name="DoneButton" type="Button" parent="Layout/Buttons"]
+text = "Done"
+size_flags_horizontal = 3
+
+[node name="OnHoldButton" parent="." instance=ExtResource("4")]

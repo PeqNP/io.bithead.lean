@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://wu_assignees"]
+
+[ext_resource type="Script" path="res://scenes/entities/WorkUnitCard/Assignees.gd" id="1"]
+
+[node name="Assignees" type="Control"]
+custom_minimum_size = Vector2(0, 16)
+script = ExtResource("1")

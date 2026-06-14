@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://wu_operation_bars"]
+
+[ext_resource type="Script" path="res://scenes/entities/WorkUnitCard/OperationBars.gd" id="1"]
+
+[node name="OperationBars" type="Control"]
+custom_minimum_size = Vector2(0, 5)
+size_flags_horizontal = 3
+script = ExtResource("1")

@@ -20,11 +20,11 @@ var _hovered: bool = false
 @onready var _layout:    VBoxContainer  = $Layout
 @onready var _title_lbl: Label          = $Layout/Title
 @onready var _eta_lbl:   Label          = $Layout/ETA
-@onready var _assignees: WUAssignees    = $Layout/Assignees
-@onready var _op_bars:   WUOperationBars = $Layout/OperationBars
+@onready var _assignees: Assignees       = $Layout/Assignees
+@onready var _op_bars:   OperationBars   = $Layout/OperationBars
 @onready var _open_btn:  Button         = $Layout/Buttons/OpenButton
 @onready var _done_btn:  Button         = $Layout/Buttons/DoneButton
-@onready var _hold_btn:  WUOnHoldButton = $OnHoldButton
+@onready var _hold_btn:  OnHoldButton   = $OnHoldButton
 
 
 func _ready() -> void:
