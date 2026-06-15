@@ -308,12 +308,26 @@ func _on_create_inventory() -> void:
 	_add_placeholder_inventory()
 
 
+func _on_create_intake_queue(line_id: int) -> void:
+	_boss.receive("open-window", {
+		"controller": "CreateFactoryModel",
+		"parameters": ["intake-queue", line_id],
+	})
+
+
+func _on_create_station(line_id: int) -> void:
+	_boss.receive("open-window", {
+		"controller": "CreateFactoryModel",
+		"parameters": ["station", line_id],
+	})
+
+
 ## Add a temporary placeholder Line at the first available grid position.
 ## Uses a negative id so it won't collide with server-assigned ids.
 var _next_placeholder_id: int = -1
 
 func _add_placeholder_line() -> void:
-	var px_pos := _first_available_pos(8.0 * TILE_SIZE, 3.0 * TILE_SIZE)
+	var px_pos := _first_available_pos(11.0 * TILE_SIZE, 3.0 * TILE_SIZE)
 	if px_pos == Vector2(-1.0, -1.0):
 		return
 	var tile_x := int(px_pos.x) / TILE_SIZE
@@ -336,13 +350,12 @@ func _add_placeholder_line() -> void:
 	node.configure(data)
 	node.set_zoom_index(_zoom_index)
 	node.set_meta("is_line", true)
-	_wire_entity_signals(node, 8, 3)
+	_wire_entity_signals(node, 11, 3)
 	_entity_nodes[data["id"]] = node
-	_scroll_camera_to_tile(Vector2i(tile_x, tile_y))
-
-
+	_update_camera_limits()
+	_pan(px_pos + Vector2(11.0 * TILE_SIZE, 3.0 * TILE_SIZE) * 0.5)
 func _add_placeholder_inventory() -> void:
-	var px_pos := _first_available_pos(2.0 * TILE_SIZE, 2.0 * TILE_SIZE)
+	var px_pos := _first_available_pos(4.0 * TILE_SIZE, 2.0 * TILE_SIZE)
 	if px_pos == Vector2(-1.0, -1.0):
 		return
 	var tile_x := int(px_pos.x) / TILE_SIZE
@@ -361,11 +374,10 @@ func _add_placeholder_inventory() -> void:
 	node.configure(data)
 	node.set_zoom_index(_zoom_index)
 	node.set_meta("is_line", false)
-	_wire_entity_signals(node, 2, 2)
+	_wire_entity_signals(node, 4, 2)
 	_entity_nodes[data["id"]] = node
-	_scroll_camera_to_tile(Vector2i(tile_x, tile_y))
-
-
+	_update_camera_limits()
+	_pan(px_pos + Vector2(4.0 * TILE_SIZE, 2.0 * TILE_SIZE) * 0.5)
 ## Smoothly move the camera so the given tile position is visible.
 func _scroll_camera_to_tile(tile: Vector2i) -> void:
 	var target := Vector2(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
@@ -513,6 +525,9 @@ func _wire_entity_signals(entity: Node2D, tile_w: int, tile_h: int) -> void:
 	entity.move_requested.connect(_on_move_requested)
 	entity.focus_toggled.connect(_on_focus_toggled)
 	entity.lock_toggled.connect(_on_lock_toggled)
+	if entity.get_meta("is_line", false):
+		entity.create_intake_queue_requested.connect(_on_create_intake_queue)
+		entity.create_station_requested.connect(_on_create_station)
 
 
 func _on_move_requested(entity: Node2D, tile_w: int, tile_h: int) -> void:

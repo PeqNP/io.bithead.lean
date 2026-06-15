@@ -85,6 +85,8 @@ const BLUE_BELT    := Color(0.149, 0.545, 0.824, 0.80)   # Chevron belt default
 
 ## Darkest Solarized background — used as edit-control button background.
 const BASE_03 := Color(0.000, 0.169, 0.212)   # #002b36
+## Second-darkest Solarized background — panel fill behind toolbox buttons.
+const BASE_02 := Color(0.027, 0.212, 0.259)   # #073642
 
 # ---------------------------------------------------------------------------
 # Button styling utility
@@ -127,3 +129,31 @@ static func style_edit_button(btn: Button) -> void:
 	btn.add_theme_stylebox_override("pressed",  make_sb.call(BASE_03.darkened(0.15)))
 	btn.add_theme_stylebox_override("disabled", make_sb.call(Color(BASE_03.r, BASE_03.g, BASE_03.b, 0.4)))
 	btn.add_theme_color_override("font_color", FG_0)
+
+
+## Panel-button style: Base3 fill, Base2 border, Base01 text.
+## Use for toolbox buttons (OperationPanel, ZoomSlider).
+static func style_panel_button(btn: Button) -> void:
+	var make_sb := func(fill: Color, border: Color) -> StyleBoxFlat:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = fill
+		sb.border_color = border
+		sb.set_border_width_all(1)
+		sb.set_corner_radius_all(0)
+		sb.content_margin_left   = 8.0
+		sb.content_margin_right  = 8.0
+		sb.content_margin_top    = 4.0
+		sb.content_margin_bottom = 4.0
+		return sb
+	btn.add_theme_stylebox_override("normal",   make_sb.call(BG_0, BG_1))
+	btn.add_theme_stylebox_override("hover",    make_sb.call(BG_0.lightened(0.1), BLUE))
+	btn.add_theme_stylebox_override("pressed",  make_sb.call(BG_1, BLUE))
+	btn.add_theme_stylebox_override("disabled", make_sb.call(Color(BG_0.r, BG_0.g, BG_0.b, 0.35), Color(BG_1.r, BG_1.g, BG_1.b, 0.35)))
+	btn.add_theme_color_override("font_color",          FG_1)
+	btn.add_theme_color_override("font_hover_color",    FG_1)
+	btn.add_theme_color_override("font_pressed_color",  FG_1)
+	btn.add_theme_color_override("font_disabled_color", Color(FG_1.r, FG_1.g, FG_1.b, 0.4))
+	# "normal_mirrored" is the toggled-ON state for toggle_mode buttons.
+	btn.add_theme_stylebox_override("normal_mirrored", make_sb.call(BG_1, BLUE))
+	btn.add_theme_stylebox_override("hover_mirrored",  make_sb.call(BG_1, BLUE))
+	btn.add_theme_stylebox_override("focus",           make_sb.call(BG_0, BLUE))

@@ -47,6 +47,10 @@ signal move_requested(entity: Node2D, tile_w: int, tile_h: int)
 signal focus_toggled(entity_id: int, focused: bool)
 ## Emitted so FactoryFloor can persist lock state.
 signal lock_toggled(entity_id: int, locked: bool)
+## Emitted when the user wants to create an intake queue on this line.
+signal create_intake_queue_requested(line_id: int)
+## Emitted when the user wants to create a station on this line.
+signal create_station_requested(line_id: int)
 
 var _data: Dictionary = {}
 var _entity_id: int = 0
@@ -143,7 +147,7 @@ func configure(data: Dictionary) -> void:
 ## Recompute _line_w from the furthest-right station column.
 func _compute_line_w() -> void:
 	var stations: Array = _data.get("stations", [])
-	var n_cols := (_max_station_pos_x() + 1) if not stations.is_empty() else 0
+	var n_cols := (_max_station_pos_x() + 1) if not stations.is_empty() else 1
 	var out_w: int = OUTPUT_W if _data.get("hasOutput", true) else 0
 	_line_w = INTAKE_W + HOPPER_W + n_cols * STATION_W + out_w
 
@@ -335,10 +339,16 @@ func _rebuild_intake_queues(top: float, _h: float) -> void:
 	var slot_h := 2.0 * TILE_SIZE
 	var card_h := slot_h - CARD_INSET_V * 2.0
 
-	if intake_queues.is_empty():
-		_intake_empty_lbl.show()
-		return
 	_intake_empty_lbl.hide()
+	if intake_queues.is_empty():
+		var btn := Button.new()
+		btn.text = "Create intake queue"
+		btn.position = Vector2(CARD_INSET_H, top + CARD_INSET_V)
+		btn.size = Vector2(card_w, card_h)
+		Palette.style_panel_button(btn)
+		_sections.add_child(btn)
+		btn.pressed.connect(func(): create_intake_queue_requested.emit(_entity_id))
+		return
 
 	# Stack intake queues vertically from CONTENT_TOP downward.
 	for i in intake_queues.size():
@@ -362,13 +372,21 @@ func _rebuild_station_placeholder(_top: float, _h: float) -> void:
 
 func _rebuild_stations(top: float, h: float) -> void:
 	var stations: Array = _data.get("stations", [])
+	var zone_x  := float(INTAKE_W + HOPPER_W)
+	var card_w  := float(STATION_W) - CARD_INSET_H * 2
+	var card_h  := h - CARD_INSET_V * 2.0
+
 	if stations.is_empty():
+		var btn := Button.new()
+		btn.text = "Create station"
+		btn.position = Vector2(zone_x + CARD_INSET_H, top + CARD_INSET_V)
+		btn.size = Vector2(card_w, card_h)
+		Palette.style_panel_button(btn)
+		_sections.add_child(btn)
+		btn.pressed.connect(func(): create_station_requested.emit(_entity_id))
 		return
 
-	var zone_x  := float(INTAKE_W + HOPPER_W)
 	var slot_h  := h  # 2 × TILE_SIZE
-	var card_w  := float(STATION_W) - CARD_INSET_H * 2
-	var card_h  := slot_h - CARD_INSET_V * 2.0
 
 	# Build occupied set: {posX: {posY: true}} — passed to each Station so it
 	# can enable/disable its directional move buttons without a server round-trip.
@@ -451,7 +469,9 @@ func _on_overlay_requested(station: Node2D, overlay_type: String,
 func _rebuild_output_placeholder(top: float, h: float) -> void:
 	if not _data.get("hasOutput", true):
 		return
-	var x := INTAKE_W + HOPPER_W + (_max_station_pos_x() + 1) * STATION_W + CARD_INSET_H
+	var stations: Array = _data.get("stations", [])
+	var n_cols: int = (_max_station_pos_x() + 1) if not stations.is_empty() else 1
+	var x := INTAKE_W + HOPPER_W + n_cols * STATION_W + CARD_INSET_H
 	var output := OUTPUT_SCENE.instantiate()
 	_sections.add_child(output)
 	output.configure(x, top + CARD_INSET_V, OUTPUT_W - CARD_INSET_H * 2, h - CARD_INSET_V * 2.0, int(_data.get("id", 0)))

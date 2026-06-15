@@ -17,7 +17,22 @@ var _current: int = 0
 
 func _ready() -> void:
 	layer = 15
+	_style_panel()
 	_rebuild()
+
+
+func _style_panel() -> void:
+	var panel := $Panel as PanelContainer
+	var sb := StyleBoxFlat.new()
+	sb.bg_color     = Palette.BASE_02
+	sb.border_color = Palette.BASE_03
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(0)
+	sb.content_margin_left   = 6.0
+	sb.content_margin_right  = 6.0
+	sb.content_margin_top    = 4.0
+	sb.content_margin_bottom = 4.0
+	panel.add_theme_stylebox_override("panel", sb)
 
 
 func set_index(index: int) -> void:
@@ -33,6 +48,7 @@ func _rebuild() -> void:
 		btn.button_pressed = (i == _current)
 		btn.add_theme_font_size_override("font_size", 11)
 		btn.custom_minimum_size = Vector2(44, 24)
+		Palette.style_panel_button(btn)
 		btn.pressed.connect(_on_btn_pressed.bind(i, btn))
 		_buttons.add_child(btn)
 

@@ -6,19 +6,12 @@
 layer = 10
 script = ExtResource("1_op")
 
-[node name="Panel" type="Panel" parent="."]
-offset_right = 130.0
-offset_bottom = 80.0
+[node name="Panel" type="PanelContainer" parent="."]
+offset_left = 12.0
+offset_top = 12.0
 
 [node name="VBox" type="VBoxContainer" parent="Panel"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 8.0
-offset_top = 8.0
-offset_right = -8.0
-offset_bottom = -8.0
+layout_mode = 2
 
 [node name="CreateLineButton" type="Button" parent="Panel/VBox"]
 layout_mode = 2

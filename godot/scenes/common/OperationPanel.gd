@@ -20,8 +20,25 @@ signal create_inventory_pressed
 
 
 func _ready() -> void:
+	_style_panel()
+	Palette.style_panel_button(_create_line_btn)
+	Palette.style_panel_button(_create_inventory_btn)
 	_create_line_btn.pressed.connect(func(): create_line_pressed.emit())
 	_create_inventory_btn.pressed.connect(func(): create_inventory_pressed.emit())
+
+
+func _style_panel() -> void:
+	var panel := $Panel as PanelContainer
+	var sb := StyleBoxFlat.new()
+	sb.bg_color     = Palette.BASE_02
+	sb.border_color = Palette.BASE_03
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(0)
+	sb.content_margin_left   = 8.0
+	sb.content_margin_right  = 8.0
+	sb.content_margin_top    = 8.0
+	sb.content_margin_bottom = 8.0
+	panel.add_theme_stylebox_override("panel", sb)
 
 
 ## Disable all action buttons while a request is in-flight.
