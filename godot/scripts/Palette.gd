@@ -117,13 +117,12 @@ static func style_edit_button(btn: Button) -> void:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = c
 		sb.set_corner_radius_all(0)
-		sb.content_margin_left   = 4.0
-		sb.content_margin_right  = 4.0
-		sb.content_margin_top    = 4.0
-		sb.content_margin_bottom = 4.0
+		sb.content_margin_left   = 8.0
+		sb.content_margin_right  = 8.0
+		sb.content_margin_top    = 8.0
+		sb.content_margin_bottom = 8.0
 		return sb
 	btn.add_theme_stylebox_override("normal",  make_sb.call(BASE_03))
 	btn.add_theme_stylebox_override("hover",   make_sb.call(BASE_03.lightened(0.15)))
 	btn.add_theme_stylebox_override("pressed", make_sb.call(BASE_03.darkened(0.15)))
 	btn.add_theme_color_override("font_color", FG_0)
-	btn.custom_minimum_size = Vector2(0.0, 24.0)

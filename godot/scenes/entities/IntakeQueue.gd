@@ -31,6 +31,7 @@ func _ready() -> void:
 	Palette.style_edit_button(_edit_btn)
 	_edit_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	_edit_btn.pressed.connect(_on_edit_pressed)
+	_controls.resized.connect(_reposition_controls)
 	_controls.hide()
 
 
@@ -55,8 +56,7 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	_layout.position = Vector2(4, 4)
 	_layout.size = Vector2(card_w - 8, card_h - 8)
 
-	_controls.position = Vector2(4, card_h - 28)
-	_controls.size = Vector2(card_w - 8, 24)
+	_controls.reset_size()
 	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
 	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
 
@@ -103,6 +103,12 @@ func _on_wu_pressed(iq_id: int) -> void:
 
 func _on_edit_pressed() -> void:
 	BOSSBridge.open_window("EditIntakeQueue", [int(_data.get("id", 0))])
+
+
+func _reposition_controls() -> void:
+	if _card_w <= 0:
+		return
+	_controls.position = Vector2(_card_w - _controls.size.x - 4.0, 4.0)
 
 
 func _parse_color(color_data, key: String, fallback: Color) -> Color:

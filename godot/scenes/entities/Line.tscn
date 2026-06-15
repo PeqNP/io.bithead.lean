@@ -19,15 +19,12 @@ theme_override_constants/separation = 4
 
 [node name="MoveButton" type="Button" parent="Controls"]
 text = "Move"
-custom_minimum_size = Vector2(58, 0)
 
 [node name="FocusButton" type="Button" parent="Controls"]
 text = "Focus"
-custom_minimum_size = Vector2(58, 0)
 
 [node name="LockButton" type="Button" parent="Controls"]
 text = "Lock"
-custom_minimum_size = Vector2(58, 0)
 
 [node name="IntakeEmptyLabel" type="Label" parent="."]
 text = "Intake\n(empty)"

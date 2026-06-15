@@ -88,6 +88,7 @@ func _ready() -> void:
 	_move_btn.pressed.connect(_on_move_pressed)
 	_focus_btn.pressed.connect(_on_focus_pressed)
 	_lock_btn.pressed.connect(_on_lock_pressed)
+	_controls.resized.connect(_reposition_controls)
 
 	# Position intake-empty label — CONTENT_TOP is always the top value used.
 	var intake_card_w := float(INTAKE_W - SECTION_PAD * 2)
@@ -201,14 +202,18 @@ func _set_hovered(hovered: bool) -> void:
 	_controls.visible = hovered
 
 
+func _reposition_controls() -> void:
+	_controls.position = Vector2(
+		_line_w - _controls.size.x - int(BORDER_WIDTH) - 2,
+		int(BORDER_WIDTH) + 2
+	)
+
+
 func _rebuild_controls() -> void:
-	# Each button has custom_minimum_size.x = 58; separation = 4; 3 buttons = 182 px.
-	const CTRL_W := 182
-	var btn_y := int(BORDER_WIDTH) + 2
-	_controls.position = Vector2(_line_w - CTRL_W - int(BORDER_WIDTH) - 4, btn_y)
 	_move_btn.disabled = _locked
 	_focus_btn.text = "Unfocus" if _focused else "Focus"
 	_lock_btn.text = "Unlock" if _locked else "Lock"
+	_controls.reset_size()
 	_controls.visible = _hovered
 
 

@@ -82,6 +82,7 @@ func _ready() -> void:
 	_move_btn.pressed.connect(_on_move_pressed)
 	_focus_btn.pressed.connect(_on_focus_pressed)
 	_lock_btn.pressed.connect(_on_lock_pressed)
+	_controls.resized.connect(_reposition_controls)
 
 	Palette.style_button(_stock_btn, Palette.GREEN)
 
@@ -148,9 +149,6 @@ func configure(data: Dictionary) -> void:
 		_order_label.add_theme_color_override("font_color", Palette.CYAN)
 		_order_label.show()
 
-	_controls.position = Vector2(4, 4)
-	_controls.size = Vector2(INV_W - 8, 24)
-
 	if _stock_panel != null:
 		_stock_panel.configure(data)
 	_update_controls()
@@ -198,7 +196,15 @@ func _update_controls() -> void:
 	_move_btn.disabled = _locked
 	_focus_btn.text = "Unfocus" if _focused else "Focus"
 	_lock_btn.text = "Unlock" if _locked else "Lock"
+	_controls.reset_size()
 	_controls.visible = _hovered
+
+
+func _reposition_controls() -> void:
+	_controls.position = Vector2(
+		INV_W - _controls.size.x - int(BORDER_WIDTH) - 2,
+		int(BORDER_WIDTH) + 2
+	)
 
 
 func _on_move_pressed() -> void:
