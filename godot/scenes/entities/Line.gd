@@ -56,14 +56,14 @@ var _col_shape: RectangleShape2D
 
 var _overlays: Array[Node] = []  # StationOverlay instances, one per station
 
-@onready var _label:            Label  = $Label
-@onready var _sections:         Node2D = $Sections
-@onready var _conveyors:        Node2D = $Conveyors
-@onready var _controls:         Node2D = $Controls
-@onready var _move_btn:         Button = $Controls/MoveButton
-@onready var _focus_btn:        Button = $Controls/FocusButton
-@onready var _lock_btn:         Button = $Controls/LockButton
-@onready var _intake_empty_lbl: Label  = $IntakeEmptyLabel
+@onready var _label:            Label         = $Label
+@onready var _sections:         Node2D        = $Sections
+@onready var _conveyors:        Node2D        = $Conveyors
+@onready var _controls:         HBoxContainer = $Controls
+@onready var _move_btn:         Button        = $Controls/MoveButton
+@onready var _focus_btn:        Button        = $Controls/FocusButton
+@onready var _lock_btn:         Button        = $Controls/LockButton
+@onready var _intake_empty_lbl: Label         = $IntakeEmptyLabel
 
 
 func _ready() -> void:
@@ -83,6 +83,7 @@ func _ready() -> void:
 
 	# Wire control buttons once — _rebuild_controls only repositions them.
 	for btn in [_move_btn, _focus_btn, _lock_btn]:
+		Palette.style_edit_button(btn)
 		btn.add_theme_font_size_override("font_size", 10)
 	_move_btn.pressed.connect(_on_move_pressed)
 	_focus_btn.pressed.connect(_on_focus_pressed)
@@ -201,12 +202,12 @@ func _set_hovered(hovered: bool) -> void:
 
 
 func _rebuild_controls() -> void:
+	# Each button has custom_minimum_size.x = 58; separation = 4; 3 buttons = 182 px.
+	const CTRL_W := 182
 	var btn_y := int(BORDER_WIDTH) + 2
-	_move_btn.position = Vector2(_line_w - 190, btn_y)
+	_controls.position = Vector2(_line_w - CTRL_W - int(BORDER_WIDTH) - 4, btn_y)
 	_move_btn.disabled = _locked
-	_focus_btn.position = Vector2(_line_w - 136, btn_y)
 	_focus_btn.text = "Unfocus" if _focused else "Focus"
-	_lock_btn.position = Vector2(_line_w - 78, btn_y)
 	_lock_btn.text = "Unlock" if _locked else "Lock"
 	_controls.visible = _hovered
 

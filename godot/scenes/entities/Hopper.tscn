@@ -18,5 +18,14 @@ clip_text = true
 [node name="Spacer" type="Control" parent="Layout"]
 size_flags_vertical = 3
 
-[node name="StartButton" type="Button" parent="Layout"]
+[node name="Buttons" type="HBoxContainer" parent="Layout"]
+theme_override_constants/separation = 2
+
+[node name="OpenButton" type="Button" parent="Layout/Buttons"]
+text = "Open"
+size_flags_horizontal = 3
+visible = false
+
+[node name="StartButton" type="Button" parent="Layout/Buttons"]
 text = "Start"
+size_flags_horizontal = 3

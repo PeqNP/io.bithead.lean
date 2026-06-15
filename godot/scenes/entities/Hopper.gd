@@ -20,13 +20,17 @@ var _card_h: float = 0.0
 @onready var _layout:     VBoxContainer = $Layout
 @onready var _name_label: Label         = $Layout/Name
 @onready var _eta_label:  Label         = $Layout/ETA
-@onready var _start_btn:  Button        = $Layout/StartButton
+@onready var _open_btn:   Button        = $Layout/Buttons/OpenButton
+@onready var _start_btn:  Button        = $Layout/Buttons/StartButton
 
 
 func _ready() -> void:
 	_start_btn.pressed.connect(_on_start_pressed)
 	_start_btn.hide()
 	Palette.style_button(_start_btn, BORDER_COLOR)
+	_open_btn.pressed.connect(_on_open_pressed)
+	_open_btn.hide()
+	Palette.style_button(_open_btn, BORDER_COLOR)
 
 
 func configure(data: Dictionary, card_x: float, card_y: float,
@@ -46,6 +50,8 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 		_eta_label.text = str(wu.get("eta", ""))
 		_eta_label.visible = not _eta_label.text.is_empty()
 		_eta_label.add_theme_color_override("font_color", MUTED_COLOR)
+		_open_btn.show()
+		_open_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 		_start_btn.show()
 		_start_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	else:
@@ -54,6 +60,7 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 		_eta_label.text = "Empty"
 		_eta_label.visible = true
 		_eta_label.add_theme_color_override("font_color", MUTED_COLOR)
+		_open_btn.hide()
 		_start_btn.hide()
 
 	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
@@ -75,3 +82,10 @@ func _on_start_pressed() -> void:
 	await BOSSBridge.post("/lean/start-work-unit", {"id": wu.get("id", 0)})
 	_start_btn.disabled = false
 	BOSSBridge.poll_snapshot()
+
+
+func _on_open_pressed() -> void:
+	var wu = _data.get("hopperWorkUnit", null)
+	if wu == null:
+		return
+	BOSSBridge.open_window("WorkUnit", [int(wu.get("id", 0))])

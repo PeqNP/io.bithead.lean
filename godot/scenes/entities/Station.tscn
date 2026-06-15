@@ -28,3 +28,11 @@ size_flags_horizontal = 3
 [node name="OpsButton" type="Button" parent="Layout/Buttons"]
 text = "Ops"
 size_flags_horizontal = 3
+
+[node name="Controls" type="HBoxContainer" parent="."]
+visible = false
+theme_override_constants/separation = 4
+
+[node name="EditButton" type="Button" parent="Controls"]
+text = "Edit"
+size_flags_horizontal = 3

@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://inv_stock_panel_001"]
+[gd_scene format=3 uid="uid://inv_stock_panel"]
 
 [ext_resource type="Script" path="res://scenes/entities/InventoryStockPanel.gd" id="1_isp"]
 
@@ -6,38 +6,49 @@
 script = ExtResource("1_isp")
 
 [node name="Rows" type="VBoxContainer" parent="."]
+theme_override_constants/separation = 0
 
 [node name="CycleStockRow" type="HBoxContainer" parent="Rows"]
-
 [node name="NameLabel" type="Label" parent="Rows/CycleStockRow"]
-text = "Cycle Stock:"
-
+text = "Cycle Stock"
 [node name="ValueLabel" type="Label" parent="Rows/CycleStockRow"]
 
 [node name="BufferStockRow" type="HBoxContainer" parent="Rows"]
-
 [node name="NameLabel" type="Label" parent="Rows/BufferStockRow"]
-text = "Buffer Stock:"
-
+text = "Buffer Stock"
 [node name="ValueLabel" type="Label" parent="Rows/BufferStockRow"]
 
 [node name="SafetyStockRow" type="HBoxContainer" parent="Rows"]
-
 [node name="NameLabel" type="Label" parent="Rows/SafetyStockRow"]
-text = "Safety Stock:"
-
+text = "Safety Stock"
 [node name="ValueLabel" type="Label" parent="Rows/SafetyStockRow"]
 
-[node name="ReorderPointRow" type="HBoxContainer" parent="Rows"]
+[node name="AlgorithmRow" type="HBoxContainer" parent="Rows"]
+[node name="NameLabel" type="Label" parent="Rows/AlgorithmRow"]
+text = "Algorithm"
+[node name="ValueLabel" type="Label" parent="Rows/AlgorithmRow"]
 
-[node name="NameLabel" type="Label" parent="Rows/ReorderPointRow"]
-text = "Reorder Point:"
+[node name="MinStockRow" type="HBoxContainer" parent="Rows"]
+[node name="NameLabel" type="Label" parent="Rows/MinStockRow"]
+text = "Min Stock"
+[node name="ValueLabel" type="Label" parent="Rows/MinStockRow"]
 
-[node name="ValueLabel" type="Label" parent="Rows/ReorderPointRow"]
+[node name="MaxStockRow" type="HBoxContainer" parent="Rows"]
+[node name="NameLabel" type="Label" parent="Rows/MaxStockRow"]
+text = "Max Stock"
+[node name="ValueLabel" type="Label" parent="Rows/MaxStockRow"]
 
-[node name="ReorderDateRow" type="HBoxContainer" parent="Rows"]
+[node name="EstDateRow" type="HBoxContainer" parent="Rows"]
+[node name="NameLabel" type="Label" parent="Rows/EstDateRow"]
+text = "Est. Date"
+[node name="ValueLabel" type="Label" parent="Rows/EstDateRow"]
 
-[node name="NameLabel" type="Label" parent="Rows/ReorderDateRow"]
-text = "Reorder Date:"
+[node name="LastComputedRow" type="HBoxContainer" parent="Rows"]
+[node name="NameLabel" type="Label" parent="Rows/LastComputedRow"]
+text = "Last Computed"
+[node name="ValueLabel" type="Label" parent="Rows/LastComputedRow"]
 
-[node name="ValueLabel" type="Label" parent="Rows/ReorderDateRow"]
+[node name="BufferRow" type="HBoxContainer" parent="Rows"]
+[node name="NameLabel" type="Label" parent="Rows/BufferRow"]
+text = "Buffer"
+[node name="ValueLabel" type="Label" parent="Rows/BufferRow"]

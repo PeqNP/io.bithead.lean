@@ -80,6 +80,13 @@ const CYAN_BELT    := Color(0.165, 0.631, 0.596, 0.90)   # Station → IntakeQue
 const BLUE_BELT    := Color(0.149, 0.545, 0.824, 0.80)   # Chevron belt default
 
 # ---------------------------------------------------------------------------
+# Edit control background
+# ---------------------------------------------------------------------------
+
+## Darkest Solarized background — used as edit-control button background.
+const BASE_03 := Color(0.000, 0.169, 0.212)   # #002b36
+
+# ---------------------------------------------------------------------------
 # Button styling utility
 # ---------------------------------------------------------------------------
 
@@ -100,4 +107,23 @@ static func style_button(btn: Button, accent: Color) -> void:
 	btn.add_theme_stylebox_override("hover",   make_sb.call(accent.lightened(0.15)))
 	btn.add_theme_stylebox_override("pressed", make_sb.call(accent.darkened(0.15)))
 	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.custom_minimum_size = Vector2(0.0, 24.0)
+
+
+## Edit-control button style: dark (Base03) background, muted (Base1) text.
+## Use for Move / Focus / Lock / Edit buttons shown on entity hover.
+static func style_edit_button(btn: Button) -> void:
+	var make_sb := func(c: Color) -> StyleBoxFlat:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = c
+		sb.set_corner_radius_all(0)
+		sb.content_margin_left   = 4.0
+		sb.content_margin_right  = 4.0
+		sb.content_margin_top    = 4.0
+		sb.content_margin_bottom = 4.0
+		return sb
+	btn.add_theme_stylebox_override("normal",  make_sb.call(BASE_03))
+	btn.add_theme_stylebox_override("hover",   make_sb.call(BASE_03.lightened(0.15)))
+	btn.add_theme_stylebox_override("pressed", make_sb.call(BASE_03.darkened(0.15)))
+	btn.add_theme_color_override("font_color", FG_0)
 	btn.custom_minimum_size = Vector2(0.0, 24.0)

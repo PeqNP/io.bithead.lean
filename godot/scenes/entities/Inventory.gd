@@ -5,7 +5,7 @@
 extends Node2D
 
 const TILE_SIZE    := 64
-const INV_W        :=  2 * TILE_SIZE   # 128 px
+const INV_W        :=  4 * TILE_SIZE   # 256 px
 const INV_H        :=  2 * TILE_SIZE   # 128 px
 
 const FILL_COLOR           := Palette.BG_1
@@ -40,14 +40,15 @@ var _col_shape: RectangleShape2D
 var _stock_panel: Node2D = null
 var _stock_open: bool = false
 
-@onready var _layout:       VBoxContainer = $Layout
-@onready var _name_label:   Label         = $Layout/Name
-@onready var _health_strip: ColorRect     = $HealthStrip
-@onready var _stock_btn:    Button        = $Layout/StockButton
-@onready var _controls:     VBoxContainer = $Controls
-@onready var _move_btn:     Button        = $Controls/MoveButton
-@onready var _focus_btn:    Button        = $Controls/FocusButton
-@onready var _lock_btn:     Button        = $Controls/LockButton
+@onready var _layout:        VBoxContainer = $Layout
+@onready var _name_label:    Label         = $Layout/Name
+@onready var _health_label:  Label         = $Layout/HealthLabel
+@onready var _order_label:   Label         = $Layout/OrderRequestLabel
+@onready var _stock_btn:     Button        = $Layout/StockButton
+@onready var _controls:      HBoxContainer = $Controls
+@onready var _move_btn:      Button        = $Controls/MoveButton
+@onready var _focus_btn:     Button        = $Controls/FocusButton
+@onready var _lock_btn:      Button        = $Controls/LockButton
 
 
 func _ready() -> void:
@@ -75,17 +76,14 @@ func _ready() -> void:
 	_stock_btn.add_theme_font_size_override("font_size", 8)
 	_stock_btn.pressed.connect(_on_stock_pressed)
 
-	_move_btn.add_theme_font_size_override("font_size", 9)
-	_focus_btn.add_theme_font_size_override("font_size", 9)
-	_lock_btn.add_theme_font_size_override("font_size", 9)
+	for btn in [_move_btn, _focus_btn, _lock_btn]:
+		Palette.style_edit_button(btn)
+		btn.add_theme_font_size_override("font_size", 9)
 	_move_btn.pressed.connect(_on_move_pressed)
 	_focus_btn.pressed.connect(_on_focus_pressed)
 	_lock_btn.pressed.connect(_on_lock_pressed)
 
 	Palette.style_button(_stock_btn, Palette.GREEN)
-	Palette.style_button(_move_btn,  Palette.GREEN)
-	Palette.style_button(_focus_btn, Palette.GREEN)
-	Palette.style_button(_lock_btn,  Palette.GREEN)
 
 
 func _input(event: InputEvent) -> void:
@@ -93,7 +91,13 @@ func _input(event: InputEvent) -> void:
 		var local := to_local(get_global_mouse_position())
 		var inside := Rect2(0, 0, INV_W, INV_H).has_point(local)
 		if inside != _hovered:
-			_set_hovered(inside)
+			_hovered = inside
+			_controls.visible = _hovered
+
+
+func _on_lock_toggled_update() -> void:
+	_lock_btn.text = "Unlock" if _locked else "Lock"
+	_move_btn.disabled = _locked
 
 
 func configure(data: Dictionary) -> void:
@@ -107,18 +111,45 @@ func configure(data: Dictionary) -> void:
 	)
 
 	_layout.position = Vector2(4, 4)
-	_layout.size = Vector2(INV_W - 8, INV_H - 8 - 18)
+	_layout.size = Vector2(INV_W - 8, INV_H - 8)
 
 	_name_label.text = str(data.get("name", ""))
 	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
 	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
 
-	var health: int = data.get("health", 0)
-	if HEALTH_COLORS.has(health):
-		_health_strip.color = HEALTH_COLORS[health]
-		_health_strip.show()
+	var health_str: String = str(data.get("health", ""))
+	if health_str.is_empty():
+		_health_label.hide()
 	else:
-		_health_strip.hide()
+		_health_label.text = health_str
+		_health_label.add_theme_font_size_override("font_size", FONT_SIZE)
+		match health_str:
+			"Healthy":  _health_label.add_theme_color_override("font_color", Palette.GREEN)
+			"Low":      _health_label.add_theme_color_override("font_color", Palette.ORANGE)
+			"Critical": _health_label.add_theme_color_override("font_color", Palette.RED)
+			_:          _health_label.add_theme_color_override("font_color", LABEL_COLOR)
+		_health_label.show()
+
+	var order: Dictionary = data.get("orderRequest", {}) as Dictionary
+	if order.is_empty():
+		_order_label.hide()
+	else:
+		var arrive: String = str(order.get("arriveDate", ""))
+		if not arrive.is_empty():
+			_order_label.text = "Arrived %s" % arrive
+		else:
+			var tracking: String = str(order.get("tracking", ""))
+			if not tracking.is_empty():
+				_order_label.text = "Shipped – %s" % tracking
+			else:
+				var eta: String = str(order.get("estimatedDeliveryDate", ""))
+				_order_label.text = "Order pending – ETA %s" % eta
+		_order_label.add_theme_font_size_override("font_size", FONT_SIZE)
+		_order_label.add_theme_color_override("font_color", Palette.CYAN)
+		_order_label.show()
+
+	_controls.position = Vector2(4, 4)
+	_controls.size = Vector2(INV_W - 8, 24)
 
 	if _stock_panel != null:
 		_stock_panel.configure(data)
@@ -163,15 +194,6 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, INV_W, INV_H), border, false, BORDER_WIDTH)
 
 
-# ---------------------------------------------------------------------------
-# Hover controls
-# ---------------------------------------------------------------------------
-
-func _set_hovered(hovered: bool) -> void:
-	_hovered = hovered
-	_controls.visible = hovered
-
-
 func _update_controls() -> void:
 	_move_btn.disabled = _locked
 	_focus_btn.text = "Unfocus" if _focused else "Focus"
@@ -182,7 +204,7 @@ func _update_controls() -> void:
 func _on_move_pressed() -> void:
 	if _locked:
 		return
-	move_requested.emit(self, 2, 2)
+	move_requested.emit(self, INV_W / TILE_SIZE, INV_H / TILE_SIZE)
 
 
 func _on_focus_pressed() -> void:

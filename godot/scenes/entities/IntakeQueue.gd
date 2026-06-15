@@ -15,12 +15,32 @@ const DEFAULT_BORDER := Palette.BLUE
 var _data: Dictionary = {}
 var _card_w: float = 0.0
 var _card_h: float = 0.0
+var _hovered: bool = false
 
 @onready var _layout:       VBoxContainer = $Layout
 @onready var _name_label:   Label         = $Layout/Name
 @onready var _cycle_label:  Label         = $Layout/CycleTime
 @onready var _dist_label:   Label         = $Layout/Distribution
 @onready var _wu_btn:       Button        = $Layout/WUButton
+@onready var _controls:     HBoxContainer = $Controls
+@onready var _edit_btn:     Button        = $Controls/EditButton
+
+
+func _ready() -> void:
+	set_process_input(true)
+	Palette.style_edit_button(_edit_btn)
+	_edit_btn.add_theme_font_size_override("font_size", SMALL_FONT)
+	_edit_btn.pressed.connect(_on_edit_pressed)
+	_controls.hide()
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var local := get_local_mouse_position()
+		var inside := Rect2(0, 0, _card_w, _card_h).has_point(local)
+		if inside != _hovered:
+			_hovered = inside
+			_controls.visible = _hovered
 
 
 ## Place and populate this card.
@@ -34,6 +54,9 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 
 	_layout.position = Vector2(4, 4)
 	_layout.size = Vector2(card_w - 8, card_h - 8)
+
+	_controls.position = Vector2(4, card_h - 28)
+	_controls.size = Vector2(card_w - 8, 24)
 	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
 	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
 
@@ -76,6 +99,10 @@ func _draw() -> void:
 
 func _on_wu_pressed(iq_id: int) -> void:
 	BOSSBridge.open_window("WorkUnits", [iq_id])
+
+
+func _on_edit_pressed() -> void:
+	BOSSBridge.open_window("EditIntakeQueue", [int(_data.get("id", 0))])
 
 
 func _parse_color(color_data, key: String, fallback: Color) -> Color:
