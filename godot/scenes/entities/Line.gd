@@ -17,12 +17,15 @@ const BORDER_FOCUSED_COLOR := Palette.BLUE
 const BORDER_WIDTH         := 3.0
 const LABEL_COLOR          := Palette.FG_1
 const FONT_SIZE            := 11
+const NAME_FONT_SIZE       := 22
 
 const INTAKE_W    :=  4 * TILE_SIZE   # fixed intake zone
 const HOPPER_W    :=  2 * TILE_SIZE   # fixed hopper zone
 const STATION_W   :=  3 * TILE_SIZE   # fixed per-station width
 const OUTPUT_W    :=  2 * TILE_SIZE   # fixed output zone
 const SECTION_PAD := 4
+const CARD_INSET_H := 12   ## horizontal inset of each card from its zone boundary (gap = 2 × CARD_INSET_H = 24 px)
+const CARD_INSET_V := 12   ## vertical inset of each card from the zone top/bottom
 
 ## Minimum tile width when there are no stations (intake+hopper+output).
 const MIN_TILE_W := (INTAKE_W + HOPPER_W + OUTPUT_W) / TILE_SIZE   # 8 tiles
@@ -91,8 +94,8 @@ func _ready() -> void:
 	_controls.resized.connect(_reposition_controls)
 
 	# Position intake-empty label — CONTENT_TOP is always the top value used.
-	var intake_card_w := float(INTAKE_W - SECTION_PAD * 2)
-	_intake_empty_lbl.position = Vector2(SECTION_PAD + 4, CONTENT_TOP + 4)
+	var intake_card_w := float(INTAKE_W - CARD_INSET_H * 2)
+	_intake_empty_lbl.position = Vector2(CARD_INSET_H + 4, CONTENT_TOP + CARD_INSET_V + 4)
 	_intake_empty_lbl.custom_minimum_size = Vector2(intake_card_w - 8, 0)
 	_intake_empty_lbl.add_theme_color_override("font_color", LABEL_COLOR)
 	_intake_empty_lbl.add_theme_font_size_override("font_size", FONT_SIZE)
@@ -125,7 +128,7 @@ func configure(data: Dictionary) -> void:
 
 	_label.text = str(data.get("name", ""))
 	_label.add_theme_color_override("font_color", LABEL_COLOR)
-	_label.add_theme_font_size_override("font_size", FONT_SIZE)
+	_label.add_theme_font_size_override("font_size", NAME_FONT_SIZE)
 	_label.position = Vector2(BORDER_WIDTH + 4, BORDER_WIDTH + 2)
 
 	_rebuild_sections()
@@ -134,23 +137,27 @@ func configure(data: Dictionary) -> void:
 	queue_redraw()
 
 
-## Recompute _line_w from the current station count.
+## Recompute _line_w from the furthest-right station column.
 func _compute_line_w() -> void:
-	var n: int = (_data.get("stations", []) as Array).size()
-	var stations_w: int = max(0, n) * STATION_W
+	var stations: Array = _data.get("stations", [])
+	var n_cols := (_max_station_pos_x() + 1) if not stations.is_empty() else 0
 	var out_w: int = OUTPUT_W if _data.get("hasOutput", true) else 0
-	_line_w = INTAKE_W + HOPPER_W + stations_w + out_w
+	_line_w = INTAKE_W + HOPPER_W + n_cols * STATION_W + out_w
 
 
 ## How many tiles wide this Line currently is.
 func tile_w() -> int:
 	return _line_w / TILE_SIZE
 
-## Recompute _line_h from the current intake queue count.
+## Recompute _line_h from intake queue count and station row count.
 func _compute_line_h() -> void:
-	var n: int = max(1, (_data.get("intakeQueues", []) as Array).size())
-	var card_h := 2 * TILE_SIZE
-	_line_h = CONTENT_TOP + n * card_h + (n - 1) * SECTION_PAD + SECTION_PAD
+	var slot_h := 2 * TILE_SIZE
+	var n_iq: int = max(1, (_data.get("intakeQueues", []) as Array).size())
+	var intake_grid_h := n_iq * slot_h + (n_iq - 1) * SECTION_PAD
+	var stations: Array = _data.get("stations", [])
+	var n_rows := (_max_station_pos_y() + 1) if not stations.is_empty() else 1
+	var station_grid_h := n_rows * slot_h + (n_rows - 1) * SECTION_PAD
+	_line_h = CONTENT_TOP + max(intake_grid_h, station_grid_h)
 
 ## How many tiles tall this Line currently is (grid footprint, rounded up).
 func tile_h() -> int:
@@ -180,9 +187,8 @@ func _draw() -> void:
 
 	# Output zone border
 	if _data.get("hasOutput", true):
-		var stations_zone_w := (_data.get("stations", []) as Array).size() * STATION_W
-		var ox := float(INTAKE_W + HOPPER_W + stations_zone_w + SECTION_PAD)
-		draw_rect(Rect2(ox, float(CONTENT_TOP), float(OUTPUT_W - SECTION_PAD * 2), 2.0 * TILE_SIZE),
+		var ox := float(INTAKE_W + HOPPER_W) + float(_max_station_pos_x() + 1) * float(STATION_W) + CARD_INSET_H
+		draw_rect(Rect2(ox, float(CONTENT_TOP + CARD_INSET_V), float(OUTPUT_W - CARD_INSET_H * 2), 2.0 * TILE_SIZE - CARD_INSET_V * 2.0),
 			Palette.GREEN, false, BORDER_WIDTH)
 
 
@@ -231,6 +237,50 @@ func _on_lock_pressed() -> void:
 	lock_toggled.emit(_entity_id, _locked)
 
 
+## Returns the largest posX value across all stations (0 when none).
+func _max_station_pos_x() -> int:
+	var mx: int = 0
+	for s: Dictionary in (_data.get("stations", []) as Array):
+		mx = max(mx, s.get("posX", 0))
+	return mx
+
+
+## Returns the largest posY value across all stations (0 when none).
+func _max_station_pos_y() -> int:
+	var my: int = 0
+	for s: Dictionary in (_data.get("stations", []) as Array):
+		my = max(my, s.get("posY", 0))
+	return my
+
+
+## Returns grid position (posX, posY) of station[station_index].
+func _station_pos(station_index: int) -> Vector2i:
+	var stations: Array = _data.get("stations", [])
+	if station_index >= stations.size():
+		return Vector2i(station_index, 0)
+	var s := stations[station_index] as Dictionary
+	return Vector2i(s.get("posX", station_index), s.get("posY", 0))
+
+
+## Returns a local-space point at the center of the requested card edge.
+## edge_dir must be a unit cardinal vector: (1,0) right  (-1,0) left  (0,1) bottom  (0,-1) top.
+func _station_card_edge(pos_x: int, pos_y: int, edge_dir: Vector2) -> Vector2:
+	var slot_h := 2.0 * TILE_SIZE
+	var zone_x := float(INTAKE_W + HOPPER_W)
+	var col_x  := zone_x + pos_x * float(STATION_W)
+	var row_y  := float(CONTENT_TOP) + pos_y * (slot_h + float(SECTION_PAD))
+	var cx := col_x + float(STATION_W) / 2.0
+	var cy := row_y + slot_h / 2.0
+	if edge_dir.x > 0:
+		return Vector2(col_x + float(STATION_W) - CARD_INSET_H, cy)
+	elif edge_dir.x < 0:
+		return Vector2(col_x + CARD_INSET_H, cy)
+	elif edge_dir.y > 0:
+		return Vector2(cx, row_y + slot_h - CARD_INSET_V)
+	else:
+		return Vector2(cx, row_y + CARD_INSET_V)
+
+
 func _rebuild_sections() -> void:
 	for child in _sections.get_children():
 		child.queue_free()
@@ -250,8 +300,9 @@ func _rebuild_sections() -> void:
 
 func _rebuild_intake_queues(top: float, _h: float) -> void:
 	var intake_queues: Array = _data.get("intakeQueues", [])
-	var card_w := float(INTAKE_W - SECTION_PAD * 2)
-	var card_h := 2.0 * TILE_SIZE
+	var card_w := float(INTAKE_W - CARD_INSET_H * 2)
+	var slot_h := 2.0 * TILE_SIZE
+	var card_h := slot_h - CARD_INSET_V * 2.0
 
 	if intake_queues.is_empty():
 		_intake_empty_lbl.show()
@@ -260,18 +311,18 @@ func _rebuild_intake_queues(top: float, _h: float) -> void:
 
 	# Stack intake queues vertically from CONTENT_TOP downward.
 	for i in intake_queues.size():
-		var card_y := top + i * (card_h + SECTION_PAD)
+		var card_y := top + CARD_INSET_V + i * (slot_h + SECTION_PAD)
 		var iq := INTAKE_QUEUE_SCENE.instantiate()
 		_sections.add_child(iq)
-		iq.configure(intake_queues[i], SECTION_PAD, card_y, card_w, card_h)
+		iq.configure(intake_queues[i], CARD_INSET_H, card_y, card_w, card_h)
 
 
 func _rebuild_hopper(top: float, h: float) -> void:
 	var hopper := HOPPER_SCENE.instantiate()
 	_sections.add_child(hopper)
-	var card_x := INTAKE_W + SECTION_PAD
-	var card_w := HOPPER_W - SECTION_PAD * 2
-	hopper.configure(_data, card_x, top, card_w, h)
+	var card_x := INTAKE_W + CARD_INSET_H
+	var card_w := HOPPER_W - CARD_INSET_H * 2
+	hopper.configure(_data, card_x, top + CARD_INSET_V, card_w, h - CARD_INSET_V * 2.0)
 
 
 func _rebuild_station_placeholder(_top: float, _h: float) -> void:
@@ -280,24 +331,41 @@ func _rebuild_station_placeholder(_top: float, _h: float) -> void:
 
 func _rebuild_stations(top: float, h: float) -> void:
 	var stations: Array = _data.get("stations", [])
-	var zone_x   := float(INTAKE_W + HOPPER_W)
-	var stations_zone_w := float(stations.size() * STATION_W)
-
 	if stations.is_empty():
-		# No stations: no zone to show (output follows immediately).
-		_add_station_button(zone_x + SECTION_PAD, top, h, _data.get("id", 0), 0)
 		return
 
-	var card_w := float(STATION_W) - SECTION_PAD   # fixed per-station width
+	var zone_x  := float(INTAKE_W + HOPPER_W)
+	var slot_h  := h  # 2 × TILE_SIZE
+	var card_w  := float(STATION_W) - CARD_INSET_H * 2
+	var card_h  := slot_h - CARD_INSET_V * 2.0
+
+	# Build occupied set: {posX: {posY: true}} — passed to each Station so it
+	# can enable/disable its directional move buttons without a server round-trip.
+	var occupied: Dictionary = {}
+	for s: Dictionary in stations:
+		var px: int = s.get("posX", 0)
+		var py: int = s.get("posY", 0)
+		if not occupied.has(px):
+			occupied[px] = {}
+		(occupied[px] as Dictionary)[py] = true
 
 	for i in stations.size():
-		var card_x := zone_x + SECTION_PAD + i * float(STATION_W)
+		var s := stations[i] as Dictionary
+		var pos_x: int = s.get("posX", i)
+		var pos_y: int = s.get("posY", 0)
+
+		var col_x  := zone_x + pos_x * float(STATION_W)
+		var row_y  := top + pos_y * (slot_h + SECTION_PAD)
+		var card_x := col_x + CARD_INSET_H
+		var card_y := row_y + CARD_INSET_V
+
 		var station := STATION_SCENE.instantiate()
 		_sections.add_child(station)
-		station.configure(stations[i], i, card_x, top, card_w, h)
+		station.configure(s, i, card_x, card_y, card_w, card_h, occupied)
 		station.overlay_requested.connect(
-			func(s: Node2D, ot: String): _on_overlay_requested(s, ot, card_x, top)
+			func(st: Node2D, ot: String): _on_overlay_requested(st, ot, card_x, row_y)
 		)
+		station.station_move_requested.connect(_on_station_move_requested)
 
 		var overlay := OVERLAY_SCENE.instantiate() as Node2D
 		add_child(overlay)
@@ -305,33 +373,15 @@ func _rebuild_stations(top: float, h: float) -> void:
 		_overlays.append(overlay)
 		station.set_meta("overlay", overlay)
 
-		# Restore saved overlay state without making an HTTP call.
-		var saved: String = (stations[i] as Dictionary).get("overlay", "none")
+		var saved: String = s.get("overlay", "none")
 		if saved != "none":
 			var restore_type := "work_units" if saved == "workUnits" else "operations"
-			_show_station_overlay(station, restore_type, card_x, top)
-
-		# "+" before first and between/after stations.
-		if i == 0:
-			_add_station_button(zone_x + SECTION_PAD - 14, top, h, _data.get("id", 0), 0)
-		_add_station_button(zone_x + SECTION_PAD + (i + 1) * float(STATION_W), top, h,
-			_data.get("id", 0), i + 1)
+			_show_station_overlay(station, restore_type, card_x, row_y)
 
 
-## Small "+" button to add a station at a given position.
-func _add_station_button(x: float, top: float, h: float,
-		line_id: int, position_index: int) -> void:
-	var btn := Button.new()
-	btn.text = "+"
-	btn.position = Vector2(x - 7, top + h / 2.0 - 10)
-	btn.size = Vector2(14, 20)
-	btn.add_theme_font_size_override("font_size", 10)
-	btn.pressed.connect(_on_add_station.bind(line_id, position_index))
-	_sections.add_child(btn)
-
-
-func _on_add_station(line_id: int, position_index: int) -> void:
-	await BOSSBridge.post("/lean/station", {"lineId": line_id, "position": position_index})
+func _on_station_move_requested(station_id: int, new_pos_x: int, new_pos_y: int) -> void:
+	await BOSSBridge.patch("/lean/station/%d/position" % station_id,
+		{"posX": new_pos_x, "posY": new_pos_y})
 	BOSSBridge.poll_snapshot()
 
 
@@ -370,88 +420,131 @@ func _rebuild_output_placeholder(top: float, h: float) -> void:
 	if not _data.get("hasOutput", true):
 		return
 	var n: int = (_data.get("stations", []) as Array).size()
-	var x := INTAKE_W + HOPPER_W + n * STATION_W + SECTION_PAD
+	var x := INTAKE_W + HOPPER_W + n * STATION_W + CARD_INSET_H
 	var output := OUTPUT_SCENE.instantiate()
 	_sections.add_child(output)
-	output.configure(x, top, OUTPUT_W - SECTION_PAD * 2, h, int(_data.get("id", 0)))
+	output.configure(x, top + CARD_INSET_V, OUTPUT_W - CARD_INSET_H * 2, h - CARD_INSET_V * 2.0, int(_data.get("id", 0)))
 
 
 func _rebuild_conveyors() -> void:
 	for child in _conveyors.get_children():
 		child.queue_free()
 
-	# mid_y: center of the 2-tile content row (hopper/stations/output), which is fixed at CONTENT_TOP.
-	var mid_y := float(CONTENT_TOP) + TILE_SIZE
+	var mid_y := float(CONTENT_TOP) + TILE_SIZE  # vertical center of row 0
 
 	# Intake → Hopper
 	Conveyor.draw_animated(
-		Vector2(INTAKE_W - SECTION_PAD, mid_y),
-		Vector2(INTAKE_W + SECTION_PAD, mid_y),
+		Vector2(INTAKE_W - CARD_INSET_H, mid_y),
+		Vector2(INTAKE_W + CARD_INSET_H, mid_y),
 		_conveyors
 	)
 
-	# Hopper → Stations
+	# Hopper → station zone (station[0] is always at posX=0, posY=0)
 	Conveyor.draw_animated(
-		Vector2(INTAKE_W + HOPPER_W - SECTION_PAD, mid_y),
-		Vector2(INTAKE_W + HOPPER_W + SECTION_PAD, mid_y),
+		Vector2(INTAKE_W + HOPPER_W - CARD_INSET_H, mid_y),
+		Vector2(INTAKE_W + HOPPER_W + CARD_INSET_H, mid_y),
 		_conveyors
 	)
 
-	# Stations → Output
+	var stations: Array = _data.get("stations", [])
+
+	# Station-to-station belts (array order 0→1→2…, direction from posX/posY delta).
+	for i in range(stations.size() - 1):
+		var curr := stations[i] as Dictionary
+		var next := stations[i + 1] as Dictionary
+		var cpx: int = curr.get("posX", i)
+		var cpy: int = curr.get("posY", 0)
+		var npx: int = next.get("posX", i + 1)
+		var npy: int = next.get("posY", 0)
+		var dx := npx - cpx
+		var dy := npy - cpy
+
+		var from_dir: Vector2
+		var to_dir: Vector2
+		if dx > 0:
+			from_dir = Vector2(1, 0);  to_dir = Vector2(-1, 0)
+		elif dx < 0:
+			from_dir = Vector2(-1, 0); to_dir = Vector2(1, 0)
+		elif dy > 0:
+			from_dir = Vector2(0, 1);  to_dir = Vector2(0, -1)
+		else:
+			from_dir = Vector2(0, -1); to_dir = Vector2(0, 1)
+
+		Conveyor.draw_routed(
+			_station_card_edge(cpx, cpy, from_dir),
+			_station_card_edge(npx, npy, to_dir),
+			_conveyors, Conveyor.BELT_COLOR, from_dir, to_dir
+		)
+
+	# Last-station terminator: short stub with arrowhead showing exit direction.
+	if not stations.is_empty():
+		var last := stations.back() as Dictionary
+		var lpx: int = last.get("posX", stations.size() - 1)
+		var lpy: int = last.get("posY", 0)
+		# Exit direction: opposite of how the previous station connected.
+		# Default right; flip to left if the previous station is to the right.
+		var exit_dir := Vector2(1, 0)
+		if stations.size() >= 2:
+			var prev := stations[stations.size() - 2] as Dictionary
+			if prev.get("posX", 0) > lpx:
+				exit_dir = Vector2(-1, 0)
+		Conveyor.draw_stub_terminal(
+			_station_card_edge(lpx, lpy, exit_dir),
+			exit_dir, _conveyors, Conveyor.BELT_COLOR
+		)
+
+	# Station zone → Output gap belt.
 	var has_output: bool = _data.get("hasOutput", true)
-	var n_stations: int = (_data.get("stations", []) as Array).size()
 	if has_output:
-		var sx := INTAKE_W + HOPPER_W + n_stations * STATION_W
+		var sx := float(INTAKE_W + HOPPER_W) + float(_max_station_pos_x() + 1) * float(STATION_W)
 		Conveyor.draw_animated(
-			Vector2(sx - SECTION_PAD, mid_y),
-			Vector2(sx + SECTION_PAD, mid_y),
+			Vector2(sx - CARD_INSET_H, mid_y),
+			Vector2(sx + CARD_INSET_H, mid_y),
 			_conveyors
 		)
 
 
 ## World-space left-edge center of station[index]. Used for Inventory→Station belts.
 func get_station_input_world(station_index: int) -> Vector2:
-	var card_x := float(INTAKE_W + HOPPER_W + SECTION_PAD + station_index * STATION_W)
-	var mid_y := float(CONTENT_TOP) + TILE_SIZE   # center of 2-tile content row
-	return position + Vector2(card_x, mid_y)
+	var sp := _station_pos(station_index)
+	return position + _station_card_edge(sp.x, sp.y, Vector2(-1, 0))
 
 
 ## World-space top-center of station[index]. Used as the subassembly forward/return anchor.
 func get_station_top_world(station_index: int) -> Vector2:
-	var card_x := float(INTAKE_W + HOPPER_W + SECTION_PAD + station_index * STATION_W)
-	return position + Vector2(card_x + float(STATION_W - SECTION_PAD) / 2.0, 0.0)
+	var sp := _station_pos(station_index)
+	var cx := float(INTAKE_W + HOPPER_W) + sp.x * float(STATION_W) + float(STATION_W) / 2.0
+	return position + Vector2(cx, 0.0)
 
 
 ## World-space top-center of the station card for station[index]. Used for intake-queue belt exit (top).
 func get_station_card_top_world(station_index: int) -> Vector2:
-	var card_x := float(INTAKE_W + HOPPER_W + SECTION_PAD + station_index * STATION_W)
-	var card_cx := card_x + float(STATION_W - SECTION_PAD) / 2.0
-	return position + Vector2(card_cx, float(CONTENT_TOP))
+	var sp := _station_pos(station_index)
+	return position + _station_card_edge(sp.x, sp.y, Vector2(0, -1))
 
 
 ## World-space bottom-center of the station card for station[index]. Used for intake-queue belt exit (bottom).
 func get_station_card_bottom_world(station_index: int) -> Vector2:
-	var card_x := float(INTAKE_W + HOPPER_W + SECTION_PAD + station_index * STATION_W)
-	var card_cx := card_x + float(STATION_W - SECTION_PAD) / 2.0
-	return position + Vector2(card_cx, float(CONTENT_TOP) + 2.0 * TILE_SIZE)
+	var sp := _station_pos(station_index)
+	return position + _station_card_edge(sp.x, sp.y, Vector2(0, 1))
 
 
 ## World-space left-center of the intake queue card identified by queue_id.
 ## Returns position (line origin) as a fallback if the queue is not found.
 func get_intake_queue_left_world(queue_id: int) -> Vector2:
 	var intake_queues: Array = _data.get("intakeQueues", [])
-	var card_h := 2.0 * TILE_SIZE
+	var slot_h := 2.0 * TILE_SIZE
 	for i in intake_queues.size():
 		if (intake_queues[i] as Dictionary).get("id", -1) == queue_id:
-			var center_y := float(CONTENT_TOP) + i * (card_h + SECTION_PAD) + card_h / 2.0
+			var center_y := float(CONTENT_TOP) + i * (slot_h + SECTION_PAD) + slot_h / 2.0
 			return position + Vector2(0.0, center_y)
 	return position   # fallback: queue not found on this line
 
 
 ## World-space left-center of the first intake queue card. Used for connectsToLine belt routing.
 func get_first_intake_queue_left_world() -> Vector2:
-	var card_h := 2.0 * TILE_SIZE
-	var center_y := float(CONTENT_TOP) + card_h / 2.0
+	var slot_h := 2.0 * TILE_SIZE
+	var center_y := float(CONTENT_TOP) + slot_h / 2.0
 	return position + Vector2(0.0, center_y)
 
 

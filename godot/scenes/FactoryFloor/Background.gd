@@ -6,7 +6,7 @@
 extends Node2D
 
 const BG_COLOR   := Palette.BG_0
-const DOT_COLOR  := Palette.BG_1
+const DOT_COLOR  := Palette.FG_0
 const DOT_RADIUS := 1.0
 const TILE_SIZE  := 64
 

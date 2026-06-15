@@ -35,3 +35,23 @@ theme_override_constants/separation = 4
 
 [node name="EditButton" type="Button" parent="Controls"]
 text = "Edit"
+
+[node name="MoveUp" type="Button" parent="."]
+visible = false
+focus_mode = 0
+text = "▲"
+
+[node name="MoveDown" type="Button" parent="."]
+visible = false
+focus_mode = 0
+text = "▼"
+
+[node name="MoveLeft" type="Button" parent="."]
+visible = false
+focus_mode = 0
+text = "◀"
+
+[node name="MoveRight" type="Button" parent="."]
+visible = false
+focus_mode = 0
+text = "▶"

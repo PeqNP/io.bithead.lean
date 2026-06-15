@@ -57,6 +57,28 @@ static func draw_routed(from: Vector2, to: Vector2, parent: Node2D,
 	return belt
 
 
+## Draw a short belt stub from 'from_pt' in 'dir' with a filled arrowhead cap.
+## Used to show the exit direction of the last station in a chain.
+static func draw_stub_terminal(from_pt: Vector2, dir: Vector2, parent: Node2D,
+		color: Color = BELT_COLOR) -> void:
+	var stub_len := STUB_LEN * 1.5
+	var to_pt := from_pt + dir * stub_len
+
+	var belt := BeltLane.new()
+	belt.setup([from_pt, to_pt], color, BELT_HALF_W, true, true)
+	parent.add_child(belt)
+
+	# Filled arrowhead triangle just beyond the stub end.
+	var perp := Vector2(-dir.y, dir.x)
+	var tip  := to_pt + dir * BELT_HALF_W
+	var bl   := to_pt + perp * BELT_HALF_W
+	var br   := to_pt - perp * BELT_HALF_W
+	var arrow := Polygon2D.new()
+	arrow.polygon = PackedVector2Array([tip, bl, br])
+	arrow.color = color
+	parent.add_child(arrow)
+
+
 ## Draw two parallel bidirectional lanes sharing a center rail.
 ## Lane A carries chevrons from → to. Lane B carries chevrons to → from.
 ## The two outer rails are drawn by each lane; the shared center rail is drawn once.

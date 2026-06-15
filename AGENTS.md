@@ -78,6 +78,20 @@ Do not use raw `Color(r, g, b)` literals anywhere in `.gd` files. Always use `Pa
 
 ## GDScript Rules
 
+### Always declare variable types explicitly — never rely on inference
+GDScript's `:=` type inference fails when the right-hand side returns `Variant`
+(e.g. `max()`, `min()`, `Dictionary.get()`, ternary expressions mixing types).
+This causes `Cannot infer the type` errors at parse time. Always use an explicit
+type annotation instead:
+
+```gdscript
+# Wrong — max() returns Variant, inference fails
+var raw_h := 60 + max(intake_h, station_h)
+
+# Correct
+var raw_h: int = 60 + max(intake_h, station_h)
+```
+
 ### Variable shadowing — `c_` prefix
 GDScript warns (error in strict mode) when a local variable shadows a Node built-in (`name`, `position`, `size`, `scale`, `rotation`, `visible`, `owner`, `type`, `data`, `id`). Prefix such locals with `c_`.
 

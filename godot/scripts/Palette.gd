@@ -122,7 +122,8 @@ static func style_edit_button(btn: Button) -> void:
 		sb.content_margin_top    = 8.0
 		sb.content_margin_bottom = 8.0
 		return sb
-	btn.add_theme_stylebox_override("normal",  make_sb.call(BASE_03))
-	btn.add_theme_stylebox_override("hover",   make_sb.call(BASE_03.lightened(0.15)))
-	btn.add_theme_stylebox_override("pressed", make_sb.call(BASE_03.darkened(0.15)))
+	btn.add_theme_stylebox_override("normal",   make_sb.call(BASE_03))
+	btn.add_theme_stylebox_override("hover",    make_sb.call(BASE_03.lightened(0.15)))
+	btn.add_theme_stylebox_override("pressed",  make_sb.call(BASE_03.darkened(0.15)))
+	btn.add_theme_stylebox_override("disabled", make_sb.call(Color(BASE_03.r, BASE_03.g, BASE_03.b, 0.4)))
 	btn.add_theme_color_override("font_color", FG_0)

@@ -134,10 +134,21 @@ func _render_entities(snapshot: Dictionary) -> void:
 	for line_data: Dictionary in (snapshot.get("lines", []) as Array):
 		var n_st: int = (line_data.get("stations", []) as Array).size()
 		var has_out: bool = line_data.get("hasOutput", true)
-		var tw: int = (6 if not has_out else 8) + n_st * 3   # intake(4)+hopper(2)+[output(2)]+n*station(3)
-		# th: mirrors Line._compute_line_h(). CONTENT_TOP=60, card_h=128, gap=4, bottom_pad=4.
+		# tw: mirrors Line._compute_line_w(). Uses max posX across stations.
+		var max_pos_x: int = 0
+		for s: Dictionary in (line_data.get("stations", []) as Array):
+			max_pos_x = max(max_pos_x, s.get("posX", 0))
+		var n_cols := (max_pos_x + 1) if n_st > 0 else 0
+		var tw: int = (6 if not has_out else 8) + n_cols * 3   # intake(4)+hopper(2)+[output(2)]+n_cols*station(3)
+		# th: mirrors Line._compute_line_h(). CONTENT_TOP=60, slot_h=128, gap=4.
 		var n_iq: int = max(1, (line_data.get("intakeQueues", []) as Array).size())
-		var raw_h := 60 + n_iq * 128 + (n_iq - 1) * 4 + 4
+		var intake_h := n_iq * 128 + (n_iq - 1) * 4
+		var max_pos_y: int = 0
+		for s: Dictionary in (line_data.get("stations", []) as Array):
+			max_pos_y = max(max_pos_y, s.get("posY", 0))
+		var n_rows := (max_pos_y + 1) if n_st > 0 else 1
+		var station_h := n_rows * 128 + (n_rows - 1) * 4
+		var raw_h: int = 60 + max(intake_h, station_h)
 		var th: int = ceili(float(raw_h) / 64.0)
 		incoming["L_%d" % line_data.get("id", 0)] = {"data": line_data, "tw": tw, "th": th, "is_line": true}
 	for inv_data: Dictionary in (snapshot.get("inventories", []) as Array):

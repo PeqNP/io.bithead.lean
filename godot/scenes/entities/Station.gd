@@ -18,12 +18,21 @@ const SMALL_FONT    := 9
 ## Emitted when the Work Units or Operations button is pressed.
 ## Line.gd listens to close overlays on other stations first.
 signal overlay_requested(station: Node2D, overlay_type: String)
+## Emitted when a directional move button is tapped.
+## Line.gd handles persistence and rebuild.
+signal station_move_requested(station_id: int, new_pos_x: int, new_pos_y: int)
+
+const BTN_SIZE := 14   ## px — size of each directional move button
 
 var _data: Dictionary = {}
 var _station_index: int = 0
 var _card_w: float = 0.0
 var _card_h: float = 0.0
 var _hovered: bool = false
+var _pos_x: int = 0
+var _pos_y: int = 0
+var _station_id: int = 0
+var _is_first_station: bool = false
 
 @onready var _layout:      VBoxContainer = $Layout
 @onready var _name_label:  Label         = $Layout/Name
@@ -32,6 +41,10 @@ var _hovered: bool = false
 @onready var _ops_btn:     Button        = $Layout/Buttons/OpsButton
 @onready var _controls:    HBoxContainer = $Controls
 @onready var _edit_btn:    Button        = $Controls/EditButton
+@onready var _btn_up:      Button        = $MoveUp
+@onready var _btn_down:    Button        = $MoveDown
+@onready var _btn_left:    Button        = $MoveLeft
+@onready var _btn_right:   Button        = $MoveRight
 
 
 func _ready() -> void:
@@ -43,21 +56,37 @@ func _ready() -> void:
 	_edit_btn.pressed.connect(_on_edit_pressed)
 	_controls.resized.connect(_reposition_controls)
 	_controls.hide()
+	_btn_up.pressed.connect(func(): _on_move_dir(0, -1))
+	_btn_down.pressed.connect(func(): _on_move_dir(0, 1))
+	_btn_left.pressed.connect(func(): _on_move_dir(-1, 0))
+	_btn_right.pressed.connect(func(): _on_move_dir(1, 0))
+	for b in [_btn_up, _btn_down, _btn_left, _btn_right]:
+		b.hide()
 
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var local := get_local_mouse_position()
-		var inside := Rect2(0, 0, _card_w, _card_h).has_point(local)
+		# Expand hit area to include the hanging move buttons outside the card.
+		var pad := float(BTN_SIZE)
+		var inside := Rect2(-pad, -pad, _card_w + pad * 2.0, _card_h + pad * 2.0).has_point(local)
 		if inside != _hovered:
 			_hovered = inside
 			_controls.visible = _hovered
+			if not _is_first_station:
+				for b in [_btn_up, _btn_down, _btn_left, _btn_right]:
+					b.visible = _hovered
 
 
 func configure(data: Dictionary, station_index: int,
-		card_x: float, card_y: float, card_w: float, card_h: float) -> void:
+		card_x: float, card_y: float, card_w: float, card_h: float,
+		occupied: Dictionary = {}) -> void:
 	_data = data
 	_station_index = station_index
+	_station_id = data.get("id", 0)
+	_pos_x = data.get("posX", station_index)
+	_pos_y = data.get("posY", 0)
+	_is_first_station = (station_index == 0)
 	_card_w = card_w
 	_card_h = card_h
 	position = Vector2(card_x, card_y)
@@ -85,7 +114,67 @@ func configure(data: Dictionary, station_index: int,
 	Palette.style_button(_wu_btn, accent)
 	Palette.style_button(_ops_btn, accent)
 
+	_update_move_buttons(accent, occupied)
 	queue_redraw()
+
+
+## Style and enable/disable the four directional move buttons.
+func _update_move_buttons(accent: Color, occupied: Dictionary) -> void:
+	# First station is immovable — buttons are never shown.
+	if _is_first_station:
+		return
+
+	for b: Button in [_btn_up, _btn_down, _btn_left, _btn_right]:
+		_style_move_button(b, accent)
+
+	_btn_up.disabled    = (_pos_y <= 0) or _is_pos_occupied(_pos_x, _pos_y - 1, occupied)
+	_btn_down.disabled  = _is_pos_occupied(_pos_x, _pos_y + 1, occupied)
+	_btn_left.disabled  = (_pos_x <= 0) or _is_pos_occupied(_pos_x - 1, _pos_y, occupied)
+	_btn_right.disabled = _is_pos_occupied(_pos_x + 1, _pos_y, occupied)
+
+	# Top/bottom buttons: 3× wide, 1× tall — centered horizontally on the edge.
+	var wide: float = BTN_SIZE * 3.0
+	_btn_up.custom_minimum_size   = Vector2(wide, BTN_SIZE)
+	_btn_down.custom_minimum_size = Vector2(wide, BTN_SIZE)
+	_btn_up.position   = Vector2(_card_w / 2.0 - wide / 2.0, -BTN_SIZE)
+	_btn_down.position = Vector2(_card_w / 2.0 - wide / 2.0, _card_h)
+
+	# Left/right buttons: 1× wide, 3× tall — centered vertically on the edge.
+	var tall: float = BTN_SIZE * 3.0
+	_btn_left.custom_minimum_size  = Vector2(BTN_SIZE, tall)
+	_btn_right.custom_minimum_size = Vector2(BTN_SIZE, tall)
+	_btn_left.position  = Vector2(-BTN_SIZE, _card_h / 2.0 - tall / 2.0)
+	_btn_right.position = Vector2(_card_w,   _card_h / 2.0 - tall / 2.0)
+
+
+func _style_move_button(btn: Button, accent: Color) -> void:
+	btn.add_theme_font_size_override("font_size", 7)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = accent
+	var sb_hover := sb.duplicate() as StyleBoxFlat
+	sb_hover.bg_color = accent.lightened(0.2)
+	var sb_pressed := sb.duplicate() as StyleBoxFlat
+	sb_pressed.bg_color = accent.darkened(0.2)
+	var sb_disabled := sb.duplicate() as StyleBoxFlat
+	sb_disabled.bg_color = Color(accent.r, accent.g, accent.b, 0.25)
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_stylebox_override("hover", sb_hover)
+	btn.add_theme_stylebox_override("pressed", sb_pressed)
+	btn.add_theme_stylebox_override("disabled", sb_disabled)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.3))
+
+
+func _is_pos_occupied(px: int, py: int, occupied: Dictionary) -> bool:
+	if not occupied.has(px):
+		return false
+	return (occupied[px] as Dictionary).has(py)
+
+
+func _on_move_dir(dx: int, dy: int) -> void:
+	if _is_first_station:
+		return
+	station_move_requested.emit(_station_id, _pos_x + dx, _pos_y + dy)
 
 
 func close_overlay() -> void:
