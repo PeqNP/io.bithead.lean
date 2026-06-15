@@ -37,6 +37,7 @@ var _entity_nodes: Dictionary = {}
 
 # BOSS delegate — WebBOSSDelegate in browser, DummyBOSSDelegate in editor.
 var _boss: BOSSDelegate
+var _minimap: MiniMap = null
 
 @onready var _camera:      Camera2D    = $Camera2D
 @onready var _error_modal: CanvasLayer  = $ErrorModal/ErrorModal
@@ -94,6 +95,14 @@ func _ready() -> void:
 	_zoom_slider = ZOOM_SLIDER_SCENE.instantiate()
 	add_child(_zoom_slider)
 	_zoom_slider.zoom_changed.connect(_on_zoom_slider_changed)
+
+	var _minimap_layer := CanvasLayer.new()
+	_minimap_layer.layer = 10
+	add_child(_minimap_layer)
+	_minimap = MiniMap.new()
+	_minimap_layer.add_child(_minimap)
+	_minimap.reposition(get_viewport_rect().size)
+	_minimap.tapped.connect(_on_minimap_tapped)
 
 	if is_web():
 		_boss = WebBOSSDelegate.new()
@@ -199,6 +208,38 @@ func _render_entities(snapshot: Dictionary) -> void:
 	_bg.queue_redraw()
 	_render_belts()
 	_update_all_expansion_blocking()
+	_update_minimap()
+
+
+func _update_minimap() -> void:
+	if _minimap == null:
+		return
+	var entries: Array = []
+	for eid in _entity_nodes:
+		var node: Node2D = _entity_nodes[eid]
+		var is_line: bool = node.get_meta("is_line", false)
+		var w: float = float(node._line_w) if is_line else float(node.get_meta("tile_w", 2) * TILE_SIZE)
+		var h: float = float(node._line_h) if is_line else float(node.get_meta("tile_h", 2) * TILE_SIZE)
+		var color_data = node._data.get("color", null)
+		var fallback: Color = Palette.BLUE if is_line else Palette.GREEN
+		var accent: Color = _minimap_color(color_data, fallback)
+		entries.append({"rect": Rect2(node.position, Vector2(w, h)), "color": accent})
+	_minimap.refresh(entries, _compute_floor_bounds())
+
+
+func _on_minimap_tapped(world_pos: Vector2) -> void:
+	_pan(world_pos)
+
+
+func _minimap_color(color_data, fallback: Color) -> Color:
+	if color_data == null:
+		return fallback
+	var hex: String = str((color_data as Dictionary).get("border", ""))
+	if hex.is_empty():
+		return fallback
+	if hex.begins_with("#"):
+		hex = hex.substr(1)
+	return Color.from_string(hex, fallback)
 
 
 func _update_all_expansion_blocking() -> void:
@@ -360,6 +401,8 @@ func _on_viewport_resized() -> void:
 		bounds.end - half_view
 	)
 	_bg.queue_redraw()
+	if _minimap != null:
+		_minimap.reposition(get_viewport_rect().size)
 
 	if OS.is_debug_build():
 		print("FactoryFloor: viewport resized to ", get_viewport_rect().size)
