@@ -78,6 +78,14 @@ Do not use raw `Color(r, g, b)` literals anywhere in `.gd` files. Always use `Pa
 
 ## GDScript Rules
 
+### Never construct `oldString`/`newString` from terminal display output
+Terminal output wraps long lines visually — a single file line that is 120 characters long will appear as two lines in terminal output, but is **one line** in the file. Building replacement strings from terminal display leads to mismatched line breaks, silently partial matches, and dropped lines.
+
+**Before constructing any `oldString` or `newString` for a GDScript file:**
+1. Read the raw string content with Python: `python3 -c "lines = open('file.gd').read().split('\n'); [print(i, repr(l)) for i, l in enumerate(lines[N:M], N+1)]"`
+2. Build your replacement strings from the `repr()` output — this shows exact characters (`\t`, `\n`, trailing spaces).
+3. When using Python to apply the fix directly (preferred for GDScript), use `content.replace(old, new, 1)` with raw string literals so there is zero ambiguity.
+
 ### Always declare variable types explicitly — never rely on inference
 GDScript's `:=` type inference fails when the right-hand side returns `Variant`
 (e.g. `max()`, `min()`, `Dictionary.get()`, ternary expressions mixing types).
@@ -253,3 +261,15 @@ godot/
 - Dev fixture: `server/web/Fixtures/Lean/factory-floor.json`
 - Route: `GET /lean/factory-floor/:factoryId` (currently returns the fixture)
 - Line and Inventory IDs are **not** globally unique — they come from separate DB tables and can collide. Always namespace them in Godot (`L_<id>` / `I_<id>`).
+
+### Godot fixture symlink
+`godot/fixtures/factory-floor.json` is a symlink to the `boss` repository's copy:
+```
+godot/fixtures/factory-floor.json → /Users/ericchamberlain/source/boss/server/web/Fixtures/Lean/factory-floor.json
+```
+There is only one physical file — no synchronization between repos is needed.
+On a fresh clone, recreate the symlink:
+```
+ln -sf /path/to/boss/server/web/Fixtures/Lean/factory-floor.json \
+    godot/fixtures/factory-floor.json
+```

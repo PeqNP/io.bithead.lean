@@ -120,8 +120,8 @@ func _build_work_unit_rows() -> void:
 		_content.hide()
 		return
 
-	var visible_rows := _rows.slice(_scroll_offset,
-		min(_scroll_offset + MAX_VISIBLE, _rows.size()))
+	var end_idx: int = min(_scroll_offset + MAX_VISIBLE, _rows.size())
+	var visible_rows := _rows.slice(_scroll_offset, end_idx)
 	for wu in visible_rows:
 		var card := CARD_SCENE.instantiate()
 		_content.add_child(card)
@@ -130,8 +130,8 @@ func _build_work_unit_rows() -> void:
 
 func _build_operations_rows() -> void:
 	var work_units: Array = _station_data.get("workUnits", [])
-	for wu: Dictionary in work_units.slice(_scroll_offset,
-			min(_scroll_offset + MAX_VISIBLE, work_units.size())):
+	var end_idx: int = min(_scroll_offset + MAX_VISIBLE, work_units.size())
+	for wu: Dictionary in work_units.slice(_scroll_offset, end_idx):
 		_add_ops_row(str(wu.get("key", "")), str(wu.get("name", "")))
 	_rows = work_units
 
@@ -143,8 +143,8 @@ func _add_ops_row(key: String, c_name: String) -> void:
 
 
 func _scroll(direction: int) -> void:
-	_scroll_offset = clamp(_scroll_offset + direction, 0,
-		max(0, _rows.size() - MAX_VISIBLE))
+	var max_offset: int = max(0, _rows.size() - MAX_VISIBLE)
+	_scroll_offset = clamp(_scroll_offset + direction, 0, max_offset)
 	_rebuild()
 
 

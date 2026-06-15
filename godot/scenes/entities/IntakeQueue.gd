@@ -60,12 +60,14 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
 	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
 
-	var cycle: int = int(data.get("cycleTime", 0))
+	var _cycle_v = data.get("cycleTime")
+	var cycle: int = _cycle_v if _cycle_v != null else 0
 	_cycle_label.text = "Cycle: %d" % cycle
 	_cycle_label.add_theme_color_override("font_color", LABEL_COLOR)
 	_cycle_label.add_theme_font_size_override("font_size", SMALL_FONT)
 
-	var ratio: int = int(data.get("mixRatio", 0))
+	var _ratio_v = data.get("mixRatio")
+	var ratio: int = _ratio_v if _ratio_v != null else 0
 	if ratio > 0:
 		_dist_label.text = "Distribution: %d%%" % ratio
 		_dist_label.add_theme_color_override("font_color", LABEL_COLOR)
@@ -74,12 +76,14 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	else:
 		_dist_label.hide()
 
-	var num_wu: int = int(data.get("numWorkUnits", 0))
+	var _nwu_v = data.get("numWorkUnits")
+	var num_wu: int = _nwu_v if _nwu_v != null else 0
 	_wu_btn.text = "Work Units (%d)" % num_wu
 	_wu_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	var accent := _parse_color(data.get("color", null), "border", DEFAULT_BORDER)
 	Palette.style_button(_wu_btn, accent)
-	var iq_id: int = int(data.get("id", 0))
+	var _id_v = data.get("id")
+	var iq_id: int = _id_v if _id_v != null else 0
 	if not _wu_btn.pressed.is_connected(_on_wu_pressed):
 		_wu_btn.pressed.connect(_on_wu_pressed.bind(iq_id))
 

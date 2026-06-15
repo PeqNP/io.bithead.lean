@@ -57,7 +57,10 @@ var _hovered: bool = false
 var _area: Area2D
 var _col_shape: RectangleShape2D
 
-var _overlays: Array[Node] = []  # StationOverlay instances, one per station
+var _overlays: Array[Node] = []      # StationOverlay instances, one per station
+var _station_nodes: Array[Node] = [] # Station instances from last _rebuild_stations()
+var _expansion_blocked_right: bool = false
+var _expansion_blocked_down: bool = false
 
 @onready var _label:            Label         = $Label
 @onready var _sections:         Node2D        = $Sections
@@ -185,17 +188,6 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, _line_w, _line_h), fill)
 	draw_rect(Rect2(0, 0, _line_w, _line_h), border, false, BORDER_WIDTH)
 
-	# Output zone border
-	if _data.get("hasOutput", true):
-		var ox := float(INTAKE_W + HOPPER_W) + float(_max_station_pos_x() + 1) * float(STATION_W) + CARD_INSET_H
-		draw_rect(Rect2(ox, float(CONTENT_TOP + CARD_INSET_V), float(OUTPUT_W - CARD_INSET_H * 2), 2.0 * TILE_SIZE - CARD_INSET_V * 2.0),
-			Palette.GREEN, false, BORDER_WIDTH)
-
-
-# ---------------------------------------------------------------------------
-# Hover controls
-# ---------------------------------------------------------------------------
-
 func _set_hovered(hovered: bool) -> void:
 	_hovered = hovered
 	_controls.visible = hovered
@@ -215,6 +207,7 @@ func _rebuild_controls() -> void:
 	_lock_btn.text = "Unlock" if _locked else "Lock"
 	_controls.reset_size()
 	_controls.visible = _hovered
+	_reposition_controls()
 
 
 func _on_move_pressed() -> void:
@@ -253,6 +246,42 @@ func _max_station_pos_y() -> int:
 	return my
 
 
+## Pixel-space bounding rect of this line (world position + current dimensions).
+func bounds() -> Rect2:
+	return Rect2(position, Vector2(_line_w, _line_h))
+
+## Width added by one additional station column (pixels).
+func expansion_slot_w() -> float:
+	return float(STATION_W)
+
+## Height added by one additional station row (pixels).
+func expansion_slot_h() -> float:
+	return 2.0 * TILE_SIZE + SECTION_PAD
+
+
+## Called by FactoryFloor after each render to mark whether growing this line
+## right or down would collide with a neighbouring entity.
+func set_expansion_blocked(right: bool, down: bool) -> void:
+	_expansion_blocked_right = right
+	_expansion_blocked_down  = down
+	_refresh_station_expansion_buttons()
+
+
+## Propagate current expansion-block state to each station's move buttons.
+func _refresh_station_expansion_buttons() -> void:
+	var max_x := _max_station_pos_x()
+	var max_y := _max_station_pos_y()
+	for st_node in _station_nodes:
+		if not is_instance_valid(st_node):
+			continue
+		var pos_x: int = st_node.get("_pos_x") if st_node.get("_pos_x") != null else 0
+		var pos_y: int = st_node.get("_pos_y") if st_node.get("_pos_y") != null else 0
+		var block_r: bool = (pos_x == max_x) and _expansion_blocked_right
+		var block_d: bool = (pos_y == max_y) and _expansion_blocked_down
+		if st_node.has_method("refresh_expansion_block"):
+			st_node.refresh_expansion_block(block_r, block_d)
+
+
 ## Returns grid position (posX, posY) of station[station_index].
 func _station_pos(station_index: int) -> Vector2i:
 	var stations: Array = _data.get("stations", [])
@@ -282,6 +311,7 @@ func _station_card_edge(pos_x: int, pos_y: int, edge_dir: Vector2) -> Vector2:
 
 
 func _rebuild_sections() -> void:
+	_station_nodes.clear()
 	for child in _sections.get_children():
 		child.queue_free()
 	for ov in _overlays:
@@ -296,6 +326,7 @@ func _rebuild_sections() -> void:
 	_rebuild_hopper(top, h)
 	_rebuild_stations(top, h)
 	_rebuild_output_placeholder(top, h)
+	_refresh_station_expansion_buttons()
 
 
 func _rebuild_intake_queues(top: float, _h: float) -> void:
@@ -362,8 +393,9 @@ func _rebuild_stations(top: float, h: float) -> void:
 		var station := STATION_SCENE.instantiate()
 		_sections.add_child(station)
 		station.configure(s, i, card_x, card_y, card_w, card_h, occupied)
+		_station_nodes.append(station)
 		station.overlay_requested.connect(
-			func(st: Node2D, ot: String): _on_overlay_requested(st, ot, card_x, row_y)
+				func(st: Node2D, ot: String): _on_overlay_requested(st, ot, card_x, row_y)
 		)
 		station.station_move_requested.connect(_on_station_move_requested)
 
@@ -419,8 +451,7 @@ func _on_overlay_requested(station: Node2D, overlay_type: String,
 func _rebuild_output_placeholder(top: float, h: float) -> void:
 	if not _data.get("hasOutput", true):
 		return
-	var n: int = (_data.get("stations", []) as Array).size()
-	var x := INTAKE_W + HOPPER_W + n * STATION_W + CARD_INSET_H
+	var x := INTAKE_W + HOPPER_W + (_max_station_pos_x() + 1) * STATION_W + CARD_INSET_H
 	var output := OUTPUT_SCENE.instantiate()
 	_sections.add_child(output)
 	output.configure(x, top + CARD_INSET_V, OUTPUT_W - CARD_INSET_H * 2, h - CARD_INSET_V * 2.0, int(_data.get("id", 0)))
@@ -456,12 +487,24 @@ func _rebuild_conveyors() -> void:
 		var cpy: int = curr.get("posY", 0)
 		var npx: int = next.get("posX", i + 1)
 		var npy: int = next.get("posY", 0)
-		var dx := npx - cpx
-		var dy := npy - cpy
+		var dx: int = npx - cpx
+		var dy: int = npy - cpy
 
 		var from_dir: Vector2
 		var to_dir: Vector2
-		if dx > 0:
+		if dx > 0 and dy > 0:
+			# Right + down: exit right edge, enter top edge.
+			from_dir = Vector2(1, 0);  to_dir = Vector2(0, -1)
+		elif dx < 0 and dy > 0:
+			# Left + down: exit bottom edge, enter right edge.
+			from_dir = Vector2(0, 1);  to_dir = Vector2(1, 0)
+		elif dx > 0 and dy < 0:
+			# Right + up: exit right edge, enter bottom edge.
+			from_dir = Vector2(1, 0);  to_dir = Vector2(0, 1)
+		elif dx < 0 and dy < 0:
+			# Left + up: exit top edge, enter right edge.
+			from_dir = Vector2(0, -1); to_dir = Vector2(1, 0)
+		elif dx > 0:
 			from_dir = Vector2(1, 0);  to_dir = Vector2(-1, 0)
 		elif dx < 0:
 			from_dir = Vector2(-1, 0); to_dir = Vector2(1, 0)

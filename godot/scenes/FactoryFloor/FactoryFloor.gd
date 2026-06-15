@@ -65,7 +65,6 @@ func _ready() -> void:
 	BOSSBridge.snapshot_updated.connect(_on_snapshot_updated)
 	BOSSBridge.error.connect(_on_boss_error)
 	get_viewport().size_changed.connect(_on_viewport_resized)
-	get_tree().root.size_changed.connect(_on_viewport_resized)
 
 	_update_camera_limits()
 
@@ -98,10 +97,11 @@ func _ready() -> void:
 
 	if is_web():
 		_boss = WebBOSSDelegate.new()
+		BOSSBridge.set_backend(WebBOSSBridgeBackend.new())
 	else:
-		_boss = DummyBOSSDelegate.new()
+		_boss = LocalBOSSDelegate.new()
+		BOSSBridge.set_backend(LocalBOSSBridgeBackend.new())
 	await _boss.ready(_on_boss_command)
-
 
 # ---------------------------------------------------------------------------
 # BOSS delegate command handler
@@ -198,6 +198,43 @@ func _render_entities(snapshot: Dictionary) -> void:
 	_bg.floor_height_tiles = ceili(bg_bounds.size.y / float(TILE_SIZE))
 	_bg.queue_redraw()
 	_render_belts()
+	_update_all_expansion_blocking()
+
+
+func _update_all_expansion_blocking() -> void:
+	for eid in _entity_nodes:
+		var node: Node2D = _entity_nodes[eid]
+		if not node.get_meta("is_line", false):
+			continue
+		node.set_expansion_blocked(
+			_is_line_expansion_blocked(node, true),
+			_is_line_expansion_blocked(node, false)
+		)
+
+
+## Returns true if growing `line_node` by one station column (check_right=true)
+## or one station row (check_right=false) would intersect a neighbouring entity.
+func _is_line_expansion_blocked(line_node: Node2D, check_right: bool) -> bool:
+	var lw: float = line_node._line_w
+	var lh: float = line_node._line_h
+	var extra_w: float = line_node.expansion_slot_w() if check_right else 0.0
+	var extra_h: float = line_node.expansion_slot_h() if not check_right else 0.0
+	var expanded: Rect2 = Rect2(line_node.position, Vector2(lw + extra_w, lh + extra_h))
+	for eid in _entity_nodes:
+		var other: Node2D = _entity_nodes[eid]
+		if other == line_node:
+			continue
+		var other_rect: Rect2
+		if other.get_meta("is_line", false):
+			other_rect = Rect2(other.position, Vector2(other._line_w, other._line_h))
+		else:
+			other_rect = Rect2(other.position, Vector2(
+				other.get_meta("tile_w", 2) * TILE_SIZE,
+				other.get_meta("tile_h", 2) * TILE_SIZE
+			))
+		if expanded.intersects(other_rect):
+			return true
+	return false
 
 
 func _on_boss_error(message: String) -> void:

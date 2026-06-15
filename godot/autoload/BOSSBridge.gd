@@ -28,9 +28,23 @@ var _factory_id: int = -1
 var _base_url: String = ""
 var _access_token: String = ""   # set by sign_in(); injected as Cookie header
 
+## Backend delegate — handles all HTTP (or in-memory equivalent).
+## Assign before calling configure(). WebBOSSBridgeBackend for production;
+## LocalBOSSBridgeBackend for offline testing.
+var _backend: BOSSBridgeBackend = null
+
 ## Read-only access to the current factory id.
 var factory_id: int:
 	get: return _factory_id
+
+
+## Assign the backend delegate. Adds it as a child so it can use add_child().
+## Call this before configure() — typically in FactoryFloor._ready().
+func set_backend(backend: BOSSBridgeBackend) -> void:
+	if _backend != null:
+		_backend.queue_free()
+	_backend = backend
+	add_child(_backend)
 
 
 ## Store factory_id and base_url, then immediately fetch first snapshot.
@@ -125,59 +139,8 @@ func sign_in() -> void:
 # ---------------------------------------------------------------------------
 
 func _request(method: String, path: String, body: Dictionary) -> Dictionary:
-	if _base_url.is_empty():
-		push_warning("BOSSBridge._request called before configure() set base_url")
-		error.emit("BOSS bridge not configured.")
+	if _backend == null:
+		push_warning("BOSSBridge._request: no backend set — call set_backend() before configure()")
+		error.emit("BOSS bridge backend not configured.")
 		return {}
-
-	var url := _base_url + path
-	var headers := PackedStringArray(["Content-Type: application/json"])
-	if not _access_token.is_empty():
-		headers.append("Cookie: accessToken=%s" % _access_token)
-	var body_string := JSON.stringify(body) if not body.is_empty() else ""
-
-	var http := HTTPRequest.new()
-	add_child(http)
-
-	var http_method: int
-	match method:
-		"POST":  http_method = HTTPClient.METHOD_POST
-		"PATCH": http_method = HTTPClient.METHOD_PATCH
-		_:       http_method = HTTPClient.METHOD_GET
-
-	var err := http.request(url, headers, http_method, body_string)
-	if err != OK:
-		push_error("BOSSBridge: Failed to send %s %s (err %d)" % [method, path, err])
-		error.emit("Failed to reach BOSS server.")
-		http.queue_free()
-		return {}
-
-	var result: Array = await http.request_completed
-	http.queue_free()
-
-	var _result_code: int       = result[0]
-	var http_code: int          = result[1]
-	var _headers: PackedStringArray = result[2]
-	var body_bytes: PackedByteArray = result[3]
-
-	if http_code < 200 or http_code >= 300:
-		var msg := "Server returned %d for %s %s" % [http_code, method, path]
-		push_error("BOSSBridge: " + msg)
-		error.emit(msg)
-		return {}
-
-	if body_bytes.is_empty():
-		return {}
-
-	var json := JSON.new()
-	var parse_err := json.parse(body_bytes.get_string_from_utf8())
-	if parse_err != OK:
-		var msg := "Failed to parse JSON response from %s %s" % [method, path]
-		push_error("BOSSBridge: " + msg)
-		error.emit(msg)
-		return {}
-
-	var data = json.get_data()
-	if data is Dictionary:
-		return data
-	return {}
+	return await _backend.request(method, path, body)

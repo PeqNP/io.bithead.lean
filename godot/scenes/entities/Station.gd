@@ -25,6 +25,7 @@ signal station_move_requested(station_id: int, new_pos_x: int, new_pos_y: int)
 const BTN_SIZE := 14   ## px — size of each directional move button
 
 var _data: Dictionary = {}
+var _occupied: Dictionary = {}
 var _station_index: int = 0
 var _card_w: float = 0.0
 var _card_h: float = 0.0
@@ -82,6 +83,7 @@ func configure(data: Dictionary, station_index: int,
 		card_x: float, card_y: float, card_w: float, card_h: float,
 		occupied: Dictionary = {}) -> void:
 	_data = data
+	_occupied = occupied
 	_station_index = station_index
 	_station_id = data.get("id", 0)
 	_pos_x = data.get("posX", station_index)
@@ -175,6 +177,29 @@ func _on_move_dir(dx: int, dy: int) -> void:
 	if _is_first_station:
 		return
 	station_move_requested.emit(_station_id, _pos_x + dx, _pos_y + dy)
+
+
+## Update right/down button state to reflect whether a line-expanding move
+## would collide with a neighbouring entity. Called by Line.gd after layout.
+func refresh_expansion_block(block_right: bool, block_down: bool) -> void:
+	if _is_first_station:
+		return
+	if block_right:
+		_btn_right.text = "!"
+		_btn_right.tooltip_text = "A node is preventing the line from growing."
+		_btn_right.disabled = true
+	else:
+		_btn_right.text = ""
+		_btn_right.tooltip_text = ""
+		_btn_right.disabled = _is_pos_occupied(_pos_x + 1, _pos_y, _occupied)
+	if block_down:
+		_btn_down.text = "!"
+		_btn_down.tooltip_text = "A node is preventing the line from growing."
+		_btn_down.disabled = true
+	else:
+		_btn_down.text = ""
+		_btn_down.tooltip_text = ""
+		_btn_down.disabled = _is_pos_occupied(_pos_x, _pos_y + 1, _occupied)
 
 
 func close_overlay() -> void:
