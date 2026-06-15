@@ -185,6 +185,16 @@ func get_center_right_world() -> Vector2:
 	return position + Vector2(INV_W, INV_H / 2.0)
 
 
+## World-space point at the top-center edge.
+func get_center_top_world() -> Vector2:
+	return position + Vector2(INV_W / 2.0, 0.0)
+
+
+## World-space point at the bottom-center edge.
+func get_center_bottom_world() -> Vector2:
+	return position + Vector2(INV_W / 2.0, INV_H)
+
+
 func _draw() -> void:
 	var fill   := FILL_FOCUSED_COLOR   if _focused else FILL_COLOR
 	var border := BORDER_FOCUSED_COLOR if _focused else BORDER_COLOR

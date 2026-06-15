@@ -576,15 +576,32 @@ func _render_belts() -> void:
 			var st: Dictionary = stations[i]
 
 			# Inventory → Station belt (amber).
+			# Connect vertical edges: bottom of inv→top of station when inv is above, and vice versa.
 			var inv_raw = st.get("connectsToInventory")
 			if inv_raw != null:
 				var inv_node = inv_nodes.get(int(inv_raw))
 				if inv_node != null:
+					var station_world: Vector2
+					var inv_world: Vector2
+					var inv_dir: Vector2
+					var station_dir: Vector2
+					if inv_node.position.y < line_node.position.y:
+						# Inventory is above the line — exit bottom of inv, enter top of station.
+						inv_world    = inv_node.get_center_bottom_world()
+						station_world = line_node.get_station_card_top_world(i)
+						inv_dir      = Vector2(0,  1)
+						station_dir  = Vector2(0, -1)
+					else:
+						# Inventory is below the line — exit top of inv, enter bottom of station.
+						inv_world    = inv_node.get_center_top_world()
+						station_world = line_node.get_station_card_bottom_world(i)
+						inv_dir      = Vector2(0, -1)
+						station_dir  = Vector2(0,  1)
 					Conveyor.draw_routed(
-						inv_node.get_center_right_world(),
-						line_node.get_station_input_world(i),
-						_belt_layer,
-						Palette.YELLOW_BELT
+							inv_world, station_world,
+							_belt_layer,
+							Palette.YELLOW_BELT,
+							inv_dir, station_dir
 					)
 			var sub_raw = st.get("connectsToLine")
 			if sub_raw != null:

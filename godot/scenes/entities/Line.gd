@@ -174,20 +174,13 @@ func set_grayed(grayed: bool) -> void:
 func _draw() -> void:
 	var fill   := FILL_FOCUSED_COLOR   if _focused else FILL_COLOR
 	var border := BORDER_FOCUSED_COLOR if _focused else BORDER_COLOR
+	fill.a = 0.8 if _hovered else 0.2
 	draw_rect(Rect2(0, 0, _line_w, _line_h), fill)
 	draw_rect(Rect2(0, 0, _line_w, _line_h), border, false, BORDER_WIDTH)
 
-	# Section dividers
-	var stations_zone_w := (_data.get("stations", []) as Array).size() * STATION_W
-	var dividers := [INTAKE_W, INTAKE_W + HOPPER_W]
-	if _data.get("hasOutput", true):
-		dividers.append(INTAKE_W + HOPPER_W + stations_zone_w)
-	for x in dividers:
-		draw_line(Vector2(x, BORDER_WIDTH), Vector2(x, _line_h - BORDER_WIDTH),
-			border * Color(1, 1, 1, 0.4), 1.0)
-
 	# Output zone border
 	if _data.get("hasOutput", true):
+		var stations_zone_w := (_data.get("stations", []) as Array).size() * STATION_W
 		var ox := float(INTAKE_W + HOPPER_W + stations_zone_w + SECTION_PAD)
 		draw_rect(Rect2(ox, float(CONTENT_TOP), float(OUTPUT_W - SECTION_PAD * 2), 2.0 * TILE_SIZE),
 			Palette.GREEN, false, BORDER_WIDTH)
@@ -200,6 +193,7 @@ func _draw() -> void:
 func _set_hovered(hovered: bool) -> void:
 	_hovered = hovered
 	_controls.visible = hovered
+	queue_redraw()
 
 
 func _reposition_controls() -> void:
