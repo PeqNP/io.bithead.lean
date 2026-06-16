@@ -9,9 +9,9 @@ script = ExtResource("1_line")
 offset_right = 760.0
 offset_bottom = 20.0
 
-[node name="Sections" type="Node2D" parent="."]
-
 [node name="Conveyors" type="Node2D" parent="."]
+
+[node name="Sections" type="Node2D" parent="."]
 
 [node name="Controls" type="HBoxContainer" parent="."]
 visible = false

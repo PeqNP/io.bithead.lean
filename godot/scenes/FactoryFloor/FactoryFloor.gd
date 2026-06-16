@@ -530,12 +530,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		_pan(_camera.position - event.relative * PAN_SPEED / _camera.zoom)
 		return
 
-	# Zoom with scroll wheel.
+	# Scroll wheel pans (no zoom — use the zoom slider or keyboard shortcuts).
 	if event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			zoom_in()
-		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			zoom_out()
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_pan(_camera.position + Vector2(0.0, -PAN_SPEED * 8.0) / _camera.zoom)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_pan(_camera.position + Vector2(0.0, PAN_SPEED * 8.0) / _camera.zoom)
 
 	# Keyboard zoom: Cmd+=/- (macOS) or Ctrl+=/- (Windows/Linux), Cmd/Ctrl+0 resets to 100%.
 	if event is InputEventKey and event.pressed and not event.echo:

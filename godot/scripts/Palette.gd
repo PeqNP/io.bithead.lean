@@ -157,3 +157,29 @@ static func style_panel_button(btn: Button) -> void:
 	btn.add_theme_stylebox_override("normal_mirrored", make_sb.call(BG_1, BLUE))
 	btn.add_theme_stylebox_override("hover_mirrored",  make_sb.call(BG_1, BLUE))
 	btn.add_theme_stylebox_override("focus",           make_sb.call(BG_0, BLUE))
+
+
+## Nav-button style: BASE_02 fill on a BASE_03 panel, FG_0 muted text.
+## Use for top-left / top-right CanvasLayer panels (OperationPanel, ZoomSlider).
+static func style_nav_button(btn: Button) -> void:
+	var make_sb := func(c: Color) -> StyleBoxFlat:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = c
+		sb.set_corner_radius_all(0)
+		sb.content_margin_left   = 8.0
+		sb.content_margin_right  = 8.0
+		sb.content_margin_top    = 4.0
+		sb.content_margin_bottom = 4.0
+		return sb
+	btn.add_theme_stylebox_override("normal",   make_sb.call(BASE_02))
+	btn.add_theme_stylebox_override("hover",    make_sb.call(BASE_02.lightened(0.15)))
+	btn.add_theme_stylebox_override("pressed",  make_sb.call(BASE_02.darkened(0.10)))
+	btn.add_theme_stylebox_override("disabled", make_sb.call(Color(BASE_02.r, BASE_02.g, BASE_02.b, 0.4)))
+	btn.add_theme_color_override("font_color",          FG_0)
+	btn.add_theme_color_override("font_hover_color",    Color.WHITE)
+	btn.add_theme_color_override("font_pressed_color",  Color.WHITE)
+	btn.add_theme_color_override("font_disabled_color", Color(FG_0.r, FG_0.g, FG_0.b, 0.4))
+	# toggled-ON state for toggle_mode buttons (ZoomSlider active level).
+	btn.add_theme_stylebox_override("normal_mirrored", make_sb.call(BLUE))
+	btn.add_theme_stylebox_override("hover_mirrored",  make_sb.call(BLUE.lightened(0.1)))
+	btn.add_theme_stylebox_override("focus",           make_sb.call(BASE_02.lightened(0.05)))
