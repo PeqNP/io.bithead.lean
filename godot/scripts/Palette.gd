@@ -105,9 +105,12 @@ static func style_button(btn: Button, accent: Color) -> void:
 		sb.content_margin_top    = 4.0
 		sb.content_margin_bottom = 4.0
 		return sb
-	btn.add_theme_stylebox_override("normal",  make_sb.call(accent))
-	btn.add_theme_stylebox_override("hover",   make_sb.call(accent.lightened(0.15)))
-	btn.add_theme_stylebox_override("pressed", make_sb.call(accent.darkened(0.15)))
+	btn.add_theme_stylebox_override("normal",        make_sb.call(accent))
+	btn.add_theme_stylebox_override("hover",         make_sb.call(accent.lightened(0.15)))
+	btn.add_theme_stylebox_override("pressed",       make_sb.call(accent.darkened(0.15)))
+	btn.add_theme_stylebox_override("hover_pressed", make_sb.call(accent.darkened(0.15)))
+	btn.add_theme_stylebox_override("disabled",      make_sb.call(Color(accent.r, accent.g, accent.b, 0.4)))
+	btn.add_theme_stylebox_override("focus",         StyleBoxEmpty.new())
 	btn.add_theme_color_override("font_color", Color.WHITE)
 	btn.custom_minimum_size = Vector2(0.0, 24.0)
 

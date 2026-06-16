@@ -22,6 +22,9 @@ const ZOOM_SLIDER_SCENE  := preload("res://scenes/common/ZoomSlider.tscn")
 
 var _zoom_index: int = 0
 
+# Inertia for mouse-wheel panning — decays each frame.
+var _scroll_velocity: Vector2 = Vector2.ZERO
+
 var _drag_overlay: Node2D = null
 var _drag_entity: Node2D = null       # entity currently being dragged
 var _drag_entity_id: int = 0
@@ -48,7 +51,14 @@ var _minimap: MiniMap = null
 func is_web() -> bool:
 	return OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge")
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	# Decay mouse-wheel scroll inertia every frame.
+	if _scroll_velocity.length_squared() > 0.01:
+		_pan(_camera.position + _scroll_velocity * delta)
+		_scroll_velocity *= 0.82
+	else:
+		_scroll_velocity = Vector2.ZERO
+
 	if _drag_entity == null:
 		return
 	# Expand floor bounds live while dragging so the camera and background grow
@@ -530,12 +540,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		_pan(_camera.position - event.relative * PAN_SPEED / _camera.zoom)
 		return
 
-	# Scroll wheel pans (no zoom — use the zoom slider or keyboard shortcuts).
+	# Scroll wheel pans with inertia (no zoom — use the zoom slider or keyboard).
+	# event.factor is fractional on smooth-scroll devices, 1.0 per detent on
+	# physical wheels — this gives proportional impulse for free.
+	# Horizontal direction is inverted on web to match Godot editor feel.
 	if event is InputEventMouseButton:
+		const IMPULSE := 320.0   # pixels/sec added per detent
+		var h_sign := -1.0 if OS.get_name() == "Web" else 1.0
+		var factor := maxf(event.factor, 1.0)   # physical mouse always 1.0
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_pan(_camera.position + Vector2(0.0, -PAN_SPEED * 8.0) / _camera.zoom)
+			_scroll_velocity.y -= IMPULSE * factor
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_pan(_camera.position + Vector2(0.0, PAN_SPEED * 8.0) / _camera.zoom)
+			_scroll_velocity.y += IMPULSE * factor
+		elif event.button_index == MOUSE_BUTTON_WHEEL_LEFT:
+			_scroll_velocity.x -= IMPULSE * factor * h_sign
+		elif event.button_index == MOUSE_BUTTON_WHEEL_RIGHT:
+			_scroll_velocity.x += IMPULSE * factor * h_sign
 
 	# Keyboard zoom: Cmd+=/- (macOS) or Ctrl+=/- (Windows/Linux), Cmd/Ctrl+0 resets to 100%.
 	if event is InputEventKey and event.pressed and not event.echo:

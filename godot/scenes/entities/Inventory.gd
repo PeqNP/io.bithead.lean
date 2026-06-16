@@ -39,6 +39,7 @@ var _col_shape: RectangleShape2D
 
 var _stock_panel: Node2D = null
 var _stock_open: bool = false
+var _stock_triangle: _TriangleIndicator = null
 
 @onready var _layout:        VBoxContainer = $Layout
 @onready var _name_label:    Label         = $Layout/Name
@@ -85,6 +86,25 @@ func _ready() -> void:
 	_controls.resized.connect(_reposition_controls)
 
 	Palette.style_button(_stock_btn, Palette.GREEN)
+	# Build HBox content inside the button: "Stock" label + triangle indicator.
+	_stock_btn.text = ""
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 4)
+	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.set_anchors_preset(Control.PRESET_CENTER)
+	hbox.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	hbox.grow_vertical   = Control.GROW_DIRECTION_BOTH
+	var lbl := Label.new()
+	lbl.text = "Stock"
+	lbl.add_theme_font_size_override("font_size", 8)
+	lbl.add_theme_color_override("font_color", Color.WHITE)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_stock_triangle = _TriangleIndicator.new()
+	_stock_triangle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_child(lbl)
+	hbox.add_child(_stock_triangle)
+	_stock_btn.add_child(hbox)
 
 
 func _input(event: InputEvent) -> void:
@@ -240,4 +260,35 @@ func _on_lock_pressed() -> void:
 func _on_stock_pressed() -> void:
 	_stock_open = !_stock_open
 	_stock_panel.visible = _stock_open
-	_stock_btn.text = "Stock ▲" if _stock_open else "Stock ▼"
+	_stock_triangle.flipped = _stock_open
+	_stock_triangle.queue_redraw()
+
+
+## A tiny Control that draws a filled triangle pointing down (flipped=false)
+## or up (flipped=true) using draw_polygon — no background square.
+class _TriangleIndicator extends Control:
+	var flipped: bool = false
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(8.0, 5.0)
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		var pts: PackedVector2Array
+		if flipped:
+			# pointing up
+			pts = PackedVector2Array([
+				Vector2(w * 0.5, 0.0),
+				Vector2(w,       h),
+				Vector2(0.0,     h),
+			])
+		else:
+			# pointing down
+			pts = PackedVector2Array([
+				Vector2(0.0, 0.0),
+				Vector2(w,   0.0),
+				Vector2(w * 0.5, h),
+			])
+		draw_colored_polygon(pts, Color.WHITE)
