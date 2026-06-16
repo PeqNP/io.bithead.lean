@@ -33,11 +33,30 @@ static func draw_static(from: Vector2, to: Vector2, parent: Node2D) -> Line2D:
 
 ## Draw an animated single-lane belt between two points. Returns the BeltLane node.
 static func draw_animated(from: Vector2, to: Vector2, parent: Node2D,
-		color: Color = BELT_COLOR, half_w: float = BELT_HALF_W) -> Node2D:
+		color: Color = BELT_COLOR, half_w: float = BELT_HALF_W,
+		chevrons: bool = true) -> Node2D:
 	var belt := BeltLane.new()
-	belt.setup([from, to], color, half_w, true, true)
+	belt.setup([from, to], color, half_w, true, true, chevrons)
 	parent.add_child(belt)
 	return belt
+
+
+## Returns the world-space midpoint of a multi-segment path by arc length.
+static func path_midpoint(waypoints: Array[Vector2]) -> Vector2:
+	if waypoints.size() <= 1:
+		return waypoints[0] if waypoints.size() == 1 else Vector2.ZERO
+	var total: float = 0.0
+	for i in range(waypoints.size() - 1):
+		total += waypoints[i].distance_to(waypoints[i + 1])
+	var half: float = total * 0.5
+	var acc: float = 0.0
+	for i in range(waypoints.size() - 1):
+		var seg_len: float = waypoints[i].distance_to(waypoints[i + 1])
+		if acc + seg_len >= half:
+			var t: float = (half - acc) / seg_len
+			return waypoints[i].lerp(waypoints[i + 1], t)
+		acc += seg_len
+	return waypoints.back()
 
 
 ## Draw an L-shaped routed single-direction belt with side rails on both sides.
@@ -222,15 +241,18 @@ class BeltLane extends Node2D:
 	var _draw_right_border: bool = true
 	var _offset: float = 0.0
 
+	var _draw_chevrons: bool = true
 
 	func setup(waypoints: Array[Vector2], color: Color,
 			half_w: float = 6.0,
-			draw_left: bool = true, draw_right: bool = true) -> void:
+			draw_left: bool = true, draw_right: bool = true,
+			chevrons: bool = true) -> void:
 		_waypoints = waypoints
 		_color = color
 		_half_w = half_w
 		_draw_left_border = draw_left
 		_draw_right_border = draw_right
+		_draw_chevrons = chevrons
 
 
 	func _process(delta: float) -> void:
@@ -284,6 +306,8 @@ class BeltLane extends Node2D:
 			draw_polyline(PackedVector2Array(right_pts), _color, Conveyor.BORDER_W)
 
 		# --- Animated chevrons (>-shapes along the centerline) ---
+		if not _draw_chevrons:
+			return
 		var accumulated: float = 0.0
 		for i in range(_waypoints.size() - 1):
 			var seg_from := _waypoints[i]
@@ -305,3 +329,50 @@ class BeltLane extends Node2D:
 				draw_line(tip, bot, _color, CHEVRON_LINE_W)
 				t += CHEVRON_STEP
 			accumulated += seg_len
+
+
+# ---------------------------------------------------------------------------
+# InsertButton -- a 16x16 custom Control that draws a flat rect + centered "+".
+# Replaces Button to avoid Godot internal padding making it non-square.
+# ---------------------------------------------------------------------------
+
+class InsertButton extends Control:
+	const SIZE := 16.0
+	const FONT_SIZE := 12
+	const BORDER_W := 1.0
+
+	var _color: Color = Palette.BLUE_BELT
+	var _disabled: bool = false
+	signal pressed
+
+	func setup(color: Color, disabled: bool, tooltip: String) -> void:
+		_color = color
+		_disabled = disabled
+		custom_minimum_size = Vector2(SIZE, SIZE)
+		size = Vector2(SIZE, SIZE)
+		mouse_filter = MOUSE_FILTER_STOP
+		tooltip_text = tooltip
+		queue_redraw()
+
+	func _draw() -> void:
+		var alpha: float = 0.4 if _disabled else 1.0
+		var fill := Color(_color.r, _color.g, _color.b, alpha)
+		var border_color := Color(_color.r * 1.4, _color.g * 1.4, _color.b * 1.4, alpha)
+		draw_rect(Rect2(0.0, 0.0, SIZE, SIZE), fill)
+		draw_rect(Rect2(0.0, 0.0, SIZE, SIZE), border_color, false, BORDER_W)
+		var font := ThemeDB.fallback_font
+		var lbl := "+"
+		var fs := FONT_SIZE
+		var tw := font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var th := font.get_height(fs)
+		var tx := (SIZE - tw) * 0.5
+		var ty := (SIZE + th) * 0.5 - font.get_descent(fs)
+		var fc := Color(1.0, 1.0, 1.0, alpha)
+		draw_string(font, Vector2(tx, ty), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, fc)
+
+	func _gui_input(event: InputEvent) -> void:
+		if _disabled:
+			return
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			pressed.emit()
+			accept_event()

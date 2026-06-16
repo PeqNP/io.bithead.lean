@@ -552,15 +552,10 @@ func _rebuild_station_insert_buttons() -> void:
 	# Helper: place a styled + button above the belt at center_pt.
 	# Button is horizontally centered on center_pt.x; bottom edge at center_pt.y.
 	var _make_btn := func(center_pt: Vector2, idx) -> void:
-		var btn := Button.new()
-		btn.text = "+"
-		btn.size = btn_size
+		var btn := Conveyor.InsertButton.new()
 		btn.position = Vector2(center_pt.x - btn_size.x * 0.5, center_pt.y - btn_size.y * 0.5)
-		Palette.style_button(btn, Conveyor.BELT_COLOR)
-		btn.disabled = blocked
-		if blocked:
-			btn.tooltip_text = tooltip_blocked
-		else:
+		btn.setup(Conveyor.BELT_COLOR, blocked, tooltip_blocked if blocked else "")
+		if not blocked:
 			btn.pressed.connect(func(): insert_station_requested.emit(_entity_id, idx))
 		_insert_btns.add_child(btn)
 
@@ -581,7 +576,8 @@ func _rebuild_station_insert_buttons() -> void:
 		var npy: int = next.get("posY", 0)
 		var from_pt := _station_card_edge(cpx, cpy, from_dir)
 		var to_pt   := _station_card_edge(npx, npy, to_dir)
-		var mid_pt  := (from_pt + to_pt) * 0.5
+		var belt_waypoints := Conveyor._build_stub_waypoints(from_pt, from_dir, to_pt, to_dir, Conveyor.STUB_LEN)
+		var mid_pt  := Conveyor.path_midpoint(belt_waypoints)
 		_make_btn.call(mid_pt, i + 2)
 
 	# Last button: placed 10px past exit edge (stub was drawn in _rebuild_conveyors).
@@ -661,7 +657,10 @@ func _rebuild_conveyors() -> void:
 
 
 	# Last-station exit stub: 10px belt in exit direction (+ button follows it).
-	if not stations.is_empty():
+	# Only drawn when there is no Output; when hasOutput is true the gap belt
+	# already starts from the same point and would cause a double-chevron blink.
+	var _stub_has_output: bool = _data.get("hasOutput", true)
+	if not stations.is_empty() and not _stub_has_output:
 		var last_s := stations.back() as Dictionary
 		var slpx: int = last_s.get("posX", stations.size() - 1)
 		var slpy: int = last_s.get("posY", 0)
