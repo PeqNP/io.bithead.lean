@@ -222,18 +222,20 @@ class _BeltDrawer extends Node2D:
 		_draw_rails()
 
 	# -------------------------------------------------------------------------
-	# Belt fill — semi-transparent quads along each path segment
+	# Belt fill — single miter-joined polygon covering the whole path
 	# -------------------------------------------------------------------------
 
 	func _draw_fill() -> void:
 		var fill := Color(_color.r, _color.g, _color.b, 0.45)
-		for i in range(_waypoints.size() - 1):
-			var a    : Vector2 = _waypoints[i]
-			var b    : Vector2 = _waypoints[i + 1]
-			var dir  := (b - a).normalized()
-			var perp := Vector2(-dir.y, dir.x) * _half_w
-			var quad := PackedVector2Array([a + perp, b + perp, b - perp, a - perp])
-			draw_colored_polygon(quad, fill)
+		var left  := _offset_polyline(_half_w)
+		var right := _offset_polyline(-_half_w)
+		# Polygon: left edge forward, right edge backward.
+		var poly := PackedVector2Array()
+		for p: Vector2 in left:
+			poly.append(p)
+		for i in range(right.size() - 1, -1, -1):
+			poly.append(right[i])
+		draw_colored_polygon(poly, fill)
 
 	# -------------------------------------------------------------------------
 	# Chevrons — ">" stamps, oriented along path, driven by global clock
@@ -266,7 +268,7 @@ class _BeltDrawer extends Node2D:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	# -------------------------------------------------------------------------
-	# Side rails
+	# Side rails — miter-joined polylines along both edges
 	# -------------------------------------------------------------------------
 
 	func _draw_rails() -> void:
@@ -275,17 +277,38 @@ class _BeltDrawer extends Node2D:
 			minf(_color.g * 1.3, 1.0),
 			minf(_color.b * 1.3, 1.0),
 			1.0)
-		for i in range(_waypoints.size() - 1):
-			var a    : Vector2 = _waypoints[i]
-			var b    : Vector2 = _waypoints[i + 1]
-			var dir  := (b - a).normalized()
-			var perp := Vector2(-dir.y, dir.x) * _half_w
-			draw_line(a + perp, b + perp, rail, 1.5, true)
-			draw_line(a - perp, b - perp, rail, 1.5, true)
+		draw_polyline(_offset_polyline(_half_w),  rail, 1.5, true)
+		draw_polyline(_offset_polyline(-_half_w), rail, 1.5, true)
 
 	# -------------------------------------------------------------------------
 	# Path helpers
 	# -------------------------------------------------------------------------
+
+	# Returns a PackedVector2Array offset from _waypoints by `dist` pixels,
+	# with miter joins at interior corners so edges are contiguous.
+	func _offset_polyline(dist: float) -> PackedVector2Array:
+		var pts := _waypoints
+		var result := PackedVector2Array()
+		for i in pts.size():
+			if i == 0:
+				var d := (pts[1] - pts[0]).normalized()
+				result.append(pts[0] + Vector2(-d.y, d.x) * dist)
+			elif i == pts.size() - 1:
+				var d := (pts[i] - pts[i - 1]).normalized()
+				result.append(pts[i] + Vector2(-d.y, d.x) * dist)
+			else:
+				var d0 := (pts[i]     - pts[i - 1]).normalized()
+				var d1 := (pts[i + 1] - pts[i]).normalized()
+				var n0 := Vector2(-d0.y, d0.x)
+				var n1 := Vector2(-d1.y, d1.x)
+				var avg := n0 + n1
+				if avg.length_squared() > 0.001:
+					var bisector  := avg.normalized()
+					var miter_len := dist / maxf(absf(bisector.dot(n0)), 0.25)
+					result.append(pts[i] + bisector * miter_len)
+				else:
+					result.append(pts[i] + n0 * dist)
+		return result
 
 	func _path_length() -> float:
 		var total := 0.0
