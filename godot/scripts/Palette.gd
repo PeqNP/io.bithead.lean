@@ -116,7 +116,8 @@ static func style_button(btn: Button, accent: Color) -> void:
 
 
 ## Edit-control button style: dark (Base03) background, muted (Base1) text.
-## Use for Move / Focus / Lock / Edit buttons shown on entity hover.
+## Use for Move / Focus / Lock / Edit / Add / Delete buttons shown on entity hover.
+## Active (toggled-on) state uses a lightened background and white text.
 static func style_edit_button(btn: Button) -> void:
 	var make_sb := func(c: Color) -> StyleBoxFlat:
 		var sb := StyleBoxFlat.new()
@@ -127,11 +128,18 @@ static func style_edit_button(btn: Button) -> void:
 		sb.content_margin_top    = 8.0
 		sb.content_margin_bottom = 8.0
 		return sb
-	btn.add_theme_stylebox_override("normal",   make_sb.call(BASE_03))
-	btn.add_theme_stylebox_override("hover",    make_sb.call(BASE_03.lightened(0.15)))
-	btn.add_theme_stylebox_override("pressed",  make_sb.call(BASE_03.darkened(0.15)))
-	btn.add_theme_stylebox_override("disabled", make_sb.call(Color(BASE_03.r, BASE_03.g, BASE_03.b, 0.4)))
-	btn.add_theme_color_override("font_color", FG_0)
+	var active := BASE_03.lightened(0.25)
+	btn.add_theme_stylebox_override("normal",          make_sb.call(BASE_03))
+	btn.add_theme_stylebox_override("hover",           make_sb.call(BASE_03.lightened(0.15)))
+	btn.add_theme_stylebox_override("pressed",         make_sb.call(BASE_03.darkened(0.15)))
+	btn.add_theme_stylebox_override("disabled",        make_sb.call(Color(BASE_03.r, BASE_03.g, BASE_03.b, 0.4)))
+	btn.add_theme_stylebox_override("focus",           StyleBoxEmpty.new())
+	# toggled-ON (active) state: lightened background + white text.
+	btn.add_theme_stylebox_override("normal_mirrored", make_sb.call(active))
+	btn.add_theme_stylebox_override("hover_mirrored",  make_sb.call(active.lightened(0.1)))
+	btn.add_theme_color_override("font_color",         FG_0)
+	btn.add_theme_color_override("font_hover_color",   Color.WHITE)
+	btn.add_theme_color_override("font_pressed_color", Color.WHITE)
 
 
 ## Panel-button style: Base3 fill, Base2 border, Base01 text.

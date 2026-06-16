@@ -54,6 +54,8 @@ signal create_station_requested(line_id: int)
 ## Emitted when the user taps a + button to insert a station.
 ## index is the array-position for the new station; null means append after last.
 signal insert_station_requested(line_id: int, index)
+## Emitted when the user confirms deletion of a station.
+signal delete_station_requested(line_id: int, station_id: int)
 
 var _data: Dictionary = {}
 var _entity_id: int = 0
@@ -70,6 +72,13 @@ var _expansion_blocked_right: bool = false
 var _expansion_blocked_down: bool = false
 var _station_insert_blocked: bool = false
 var _insert_btns: Node2D = null
+var _station_toolbar: Node2D = null   # toggle + Add/Delete row above first station
+var _add_mode: bool = false
+var _delete_mode: bool = false
+var _toolbar_toggle_btn: Button = null
+var _toolbar_add_btn: Button = null
+var _toolbar_delete_btn: Button = null
+var _toolbar_open: bool = false
 
 @onready var _label:            Label         = $Label
 @onready var _sections:         Node2D        = $Sections
@@ -106,6 +115,8 @@ func _ready() -> void:
 	_controls.resized.connect(_reposition_controls)
 	_insert_btns = Node2D.new()
 	add_child(_insert_btns)
+	_station_toolbar = Node2D.new()
+	add_child(_station_toolbar)
 
 	# Position intake-empty label — CONTENT_TOP is always the top value used.
 	var intake_card_w := float(INTAKE_W - CARD_INSET_H * 2)
@@ -423,6 +434,10 @@ func _rebuild_stations(top: float, h: float) -> void:
 				func(st: Node2D, ot: String): _on_overlay_requested(st, ot, card_x, row_y)
 		)
 		station.station_move_requested.connect(_on_station_move_requested)
+		station.delete_requested.connect(_on_station_delete_requested)
+		# Apply current add/delete mode to newly created station.
+		station.set_add_mode(_add_mode)
+		station.set_delete_mode(_delete_mode)
 
 		var overlay := OVERLAY_SCENE.instantiate() as Node2D
 		add_child(overlay)
@@ -440,6 +455,10 @@ func _on_station_move_requested(station_id: int, new_pos_x: int, new_pos_y: int)
 	await BOSSBridge.patch("/lean/station/%d/position" % station_id,
 		{"posX": new_pos_x, "posY": new_pos_y})
 	BOSSBridge.poll_snapshot()
+
+
+func _on_station_delete_requested(station_id: int, _station_name: String) -> void:
+	delete_station_requested.emit(_entity_id, station_id)
 
 
 ## Show a station's overlay without persisting — used for auto-restore during rebuild.
@@ -535,10 +554,12 @@ func _belt_dirs(i: int) -> Array:
 
 
 ## Draw all + insert-station buttons overlaid on the station belt path.
-## Called from _rebuild_conveyors so buttons appear after the belt layer is built.
+## Called from _rebuild_conveyors — only shown when Add mode is active.
 func _rebuild_station_insert_buttons() -> void:
 	for child in _insert_btns.get_children():
 		child.queue_free()
+	if not _add_mode:
+		return
 	var stations: Array = _data.get("stations", [])
 	if stations.is_empty():
 		return
@@ -554,7 +575,7 @@ func _rebuild_station_insert_buttons() -> void:
 	var _make_btn := func(center_pt: Vector2, idx) -> void:
 		var btn := ConveyorBelt.InsertButton.new()
 		btn.position = Vector2(center_pt.x - btn_size.x * 0.5, center_pt.y - btn_size.y * 0.5)
-		btn.setup(ConveyorBelt.BELT_COLOR, blocked, tooltip_blocked if blocked else "")
+		btn.setup(Palette.GREEN, blocked, tooltip_blocked if blocked else "")
 		if not blocked:
 			btn.pressed.connect(func(): insert_station_requested.emit(_entity_id, idx))
 		_insert_btns.add_child(btn)
@@ -685,6 +706,112 @@ func _rebuild_conveyors() -> void:
 		)
 
 	_rebuild_station_insert_buttons()
+	_rebuild_station_toolbar()
+
+
+## Builds (or rebuilds) the small toolbar above the first station.
+## Shows a circle toggle button; when open, shows Add and Delete buttons.
+func _rebuild_station_toolbar() -> void:
+	for child in _station_toolbar.get_children():
+		child.queue_free()
+	_toolbar_toggle_btn = null
+	_toolbar_add_btn    = null
+	_toolbar_delete_btn = null
+
+	var stations: Array = _data.get("stations", [])
+	if stations.is_empty():
+		return
+
+	# X position: left edge of first station card.
+	var first := stations[0] as Dictionary
+	var first_px: int = first.get("posX", 0)
+	var card_left := float(INTAKE_W + HOPPER_W) + first_px * float(STATION_W) + CARD_INSET_H
+
+	const BTN_H     := 24.0
+	const BTN_GAP   := 4.0
+	const ABOVE_PAD := -6.0
+	var toolbar_y := float(CONTENT_TOP) - BTN_H - ABOVE_PAD
+
+	# Toggle button: circle when closed, right-pointing triangle when open.
+	# Height matches Add/Delete buttons (content margins drive height, no fixed min-h).
+	var toggle_btn := Button.new()
+	toggle_btn.toggle_mode = true
+	toggle_btn.button_pressed = _toolbar_open
+	toggle_btn.custom_minimum_size = Vector2(BTN_H, BTN_H)
+	toggle_btn.position = Vector2(card_left, toolbar_y)
+	Palette.style_edit_button(toggle_btn)
+	toggle_btn.text = ""
+	var center_wrap := CenterContainer.new()
+	center_wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _toolbar_open:
+		DrawShape.triangle(center_wrap, false, Vector2(8.0, 8.0), Color.WHITE, true)
+	else:
+		DrawShape.circle(center_wrap, Vector2(8.0, 8.0))
+	toggle_btn.add_child(center_wrap)
+	toggle_btn.pressed.connect(_on_toolbar_toggle)
+	_station_toolbar.add_child(toggle_btn)
+	_toolbar_toggle_btn = toggle_btn
+
+	if _toolbar_open:
+		var btn_x := card_left + BTN_H + BTN_GAP
+
+		# Add button.
+		var add_btn := Button.new()
+		add_btn.text = "Add"
+		add_btn.toggle_mode = true
+		add_btn.button_pressed = _add_mode
+		add_btn.position = Vector2(btn_x, toolbar_y)
+		add_btn.add_theme_font_size_override("font_size", 9)
+		Palette.style_button(add_btn, Palette.GREEN)
+		add_btn.pressed.connect(_on_toolbar_add)
+		_station_toolbar.add_child(add_btn)
+		_toolbar_add_btn = add_btn
+
+		# Delete button.
+		var del_btn := Button.new()
+		del_btn.text = "Delete"
+		del_btn.toggle_mode = true
+		del_btn.button_pressed = _delete_mode
+		del_btn.position = Vector2(btn_x + add_btn.get_minimum_size().x + BTN_GAP, toolbar_y)
+		del_btn.add_theme_font_size_override("font_size", 9)
+		Palette.style_button(del_btn, Palette.RED)
+		del_btn.pressed.connect(_on_toolbar_delete)
+		_station_toolbar.add_child(del_btn)
+		_toolbar_delete_btn = del_btn
+
+
+func _on_toolbar_toggle() -> void:
+	_toolbar_open = !_toolbar_open
+	if not _toolbar_open:
+		# Closing toolbar: turn off both modes.
+		_set_add_mode(false)
+		_set_delete_mode(false)
+	_rebuild_conveyors()
+
+
+func _on_toolbar_add() -> void:
+	_set_add_mode(!_add_mode)
+	_rebuild_conveyors()
+
+
+func _on_toolbar_delete() -> void:
+	_set_delete_mode(!_delete_mode)
+	_rebuild_station_toolbar()
+
+
+func _set_add_mode(on: bool) -> void:
+	_add_mode = on
+	for stn in _station_nodes:
+		if stn.has_method("set_add_mode"):
+			stn.set_add_mode(on)
+
+
+func _set_delete_mode(on: bool) -> void:
+	_delete_mode = on
+	for stn in _station_nodes:
+		if stn.has_method("set_delete_mode"):
+			stn.set_delete_mode(on)
 
 
 ## World-space left-edge center of station[index]. Used for Inventory→Station belts.

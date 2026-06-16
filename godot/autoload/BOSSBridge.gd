@@ -98,6 +98,34 @@ func patch(path: String, body: Dictionary) -> Dictionary:
 	return await _request("PATCH", path, body)
 
 
+## DELETE a BOSS route. Returns the parsed response Dictionary, or empty on error.
+func delete(path: String) -> Dictionary:
+	return await _request("DELETE", path, {})
+
+
+## Show a delete-confirmation modal in the BOSS shell.
+## `message`  — e.g. "Delete station 'Weld'?"
+## `on_ok`    — Callable invoked when the user confirms.
+## In the Godot editor (no JavaScriptBridge) the Callable is invoked immediately
+## so the flow can still be tested without a browser.
+func show_delete_modal(message: String, on_ok: Callable) -> void:
+	if not Engine.has_singleton("JavaScriptBridge"):
+		print("BOSSBridge.show_delete_modal [editor]: %s → confirmed" % message)
+		on_ok.call()
+		return
+	var window := JavaScriptBridge.get_interface("window")
+	if not (window and window.boss):
+		push_warning("BOSSBridge.show_delete_modal: window.boss not available")
+		return
+	# Register a one-shot callback the JS side will invoke on OK.
+	var cb_ref := JavaScriptBridge.create_callback(func(_args): on_ok.call())
+	var ev: JavaScriptObject = JavaScriptBridge.create_object("Object")
+	ev["name"]    = "show-delete"
+	ev["message"] = message
+	ev["onOk"]    = cb_ref
+	window.boss.receive(ev)
+
+
 ## Sign in as the super user via the debug route.
 ## Stores the returned accessToken for use on all subsequent requests.
 ## Only call this from DummyBOSSDelegate when running outside the browser.

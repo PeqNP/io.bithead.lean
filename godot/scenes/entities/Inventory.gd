@@ -39,7 +39,7 @@ var _col_shape: RectangleShape2D
 
 var _stock_panel: Node2D = null
 var _stock_open: bool = false
-var _stock_triangle: _TriangleIndicator = null
+var _stock_triangle: Control = null
 
 @onready var _layout:        VBoxContainer = $Layout
 @onready var _name_label:    Label         = $Layout/Name
@@ -100,10 +100,7 @@ func _ready() -> void:
 	lbl.add_theme_color_override("font_color", Color.WHITE)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_stock_triangle = _TriangleIndicator.new()
-	_stock_triangle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hbox.add_child(lbl)
-	hbox.add_child(_stock_triangle)
+	_stock_triangle = DrawShape.triangle(hbox, false)
 	_stock_btn.add_child(hbox)
 
 
@@ -260,35 +257,8 @@ func _on_lock_pressed() -> void:
 func _on_stock_pressed() -> void:
 	_stock_open = !_stock_open
 	_stock_panel.visible = _stock_open
-	_stock_triangle.flipped = _stock_open
-	_stock_triangle.queue_redraw()
-
-
-## A tiny Control that draws a filled triangle pointing down (flipped=false)
-## or up (flipped=true) using draw_polygon — no background square.
-class _TriangleIndicator extends Control:
-	var flipped: bool = false
-
-	func _ready() -> void:
-		custom_minimum_size = Vector2(8.0, 5.0)
-		size_flags_vertical = Control.SIZE_SHRINK_CENTER
-
-	func _draw() -> void:
-		var w := size.x
-		var h := size.y
-		var pts: PackedVector2Array
-		if flipped:
-			# pointing up
-			pts = PackedVector2Array([
-				Vector2(w * 0.5, 0.0),
-				Vector2(w,       h),
-				Vector2(0.0,     h),
-			])
-		else:
-			# pointing down
-			pts = PackedVector2Array([
-				Vector2(0.0, 0.0),
-				Vector2(w,   0.0),
-				Vector2(w * 0.5, h),
-			])
-		draw_colored_polygon(pts, Color.WHITE)
+	# Swap triangle direction: down when closed, up when open.
+	_stock_triangle.get_parent().remove_child(_stock_triangle)
+	_stock_triangle.queue_free()
+	var hbox := _stock_btn.get_child(0) as HBoxContainer
+	_stock_triangle = DrawShape.triangle(hbox, _stock_open)

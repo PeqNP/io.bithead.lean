@@ -386,6 +386,11 @@ func _on_insert_station(line_id: int, index) -> void:
 	BOSSBridge.poll_snapshot()
 
 
+func _on_delete_station(line_id: int, station_id: int) -> void:
+	await BOSSBridge.delete("/lean/line/%d/station/%d" % [line_id, station_id])
+	BOSSBridge.poll_snapshot()
+
+
 ## Add a temporary placeholder Line at the first available grid position.
 ## Uses a negative id so it won't collide with server-assigned ids.
 var _next_placeholder_id: int = -1
@@ -603,6 +608,7 @@ func _wire_entity_signals(entity: Node2D, tile_w: int, tile_h: int) -> void:
 		entity.create_intake_queue_requested.connect(_on_create_intake_queue)
 		entity.create_station_requested.connect(_on_create_station)
 		entity.insert_station_requested.connect(_on_insert_station)
+		entity.delete_station_requested.connect(_on_delete_station)
 
 
 func _on_move_requested(entity: Node2D, tile_w: int, tile_h: int) -> void:

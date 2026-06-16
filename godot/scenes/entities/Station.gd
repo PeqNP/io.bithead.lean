@@ -21,6 +21,8 @@ signal overlay_requested(station: Node2D, overlay_type: String)
 ## Emitted when a directional move button is tapped.
 ## Line.gd handles persistence and rebuild.
 signal station_move_requested(station_id: int, new_pos_x: int, new_pos_y: int)
+## Emitted when the delete button inside this card is tapped.
+signal delete_requested(station_id: int, station_name: String)
 
 const BTN_SIZE := 14   ## px — size of each directional move button
 
@@ -34,6 +36,8 @@ var _pos_x: int = 0
 var _pos_y: int = 0
 var _station_id: int = 0
 var _is_first_station: bool = false
+var _add_mode: bool = false     # when true, move buttons are suppressed
+var _delete_btn: Button = null  # red delete button shown in delete mode
 
 @onready var _layout:      VBoxContainer = $Layout
 @onready var _name_label:  Label         = $Layout/Name
@@ -63,6 +67,15 @@ func _ready() -> void:
 	_btn_right.pressed.connect(func(): _on_move_dir(1, 0))
 	for b in [_btn_up, _btn_down, _btn_left, _btn_right]:
 		b.hide()
+	# Delete button — hidden until delete mode is active.
+	_delete_btn = Button.new()
+	_delete_btn.text = "Delete"
+	_delete_btn.add_theme_font_size_override("font_size", SMALL_FONT)
+	_delete_btn.custom_minimum_size = Vector2(0.0, 18.0)
+	Palette.style_button(_delete_btn, Palette.RED)
+	_delete_btn.pressed.connect(_on_delete_pressed)
+	_delete_btn.hide()
+	add_child(_delete_btn)
 
 
 func _input(event: InputEvent) -> void:
@@ -74,7 +87,7 @@ func _input(event: InputEvent) -> void:
 		if inside != _hovered:
 			_hovered = inside
 			_controls.visible = _hovered
-			if not _is_first_station:
+			if not _is_first_station and not _add_mode:
 				for b in [_btn_up, _btn_down, _btn_left, _btn_right]:
 					b.visible = _hovered
 
@@ -204,6 +217,33 @@ func refresh_expansion_block(block_right: bool, block_down: bool) -> void:
 
 func close_overlay() -> void:
 	pass  # StationOverlay is managed by Line.gd; signal to close is issued there.
+
+
+## Called by Line.gd when Add mode is toggled on/off.
+## Hides move buttons entirely while Add mode is active to avoid mis-taps.
+func set_add_mode(on: bool) -> void:
+	_add_mode = on
+	if on or not _hovered:
+		for b in [_btn_up, _btn_down, _btn_left, _btn_right]:
+			b.hide()
+
+
+## Called by Line.gd when Delete mode is toggled on/off.
+## Shows/hides the red Delete button inside each station card.
+func set_delete_mode(on: bool) -> void:
+	_delete_btn.visible = on
+	if on:
+		var btn_w := _card_w - 8.0
+		_delete_btn.custom_minimum_size = Vector2(btn_w, 18.0)
+		_delete_btn.position = Vector2(4.0, 4.0)
+
+
+func _on_delete_pressed() -> void:
+	var name: String = str(_data.get("name", "this station"))
+	BOSSBridge.show_delete_modal(
+		"Delete station '%s'?" % name,
+		func(): delete_requested.emit(_station_id, name)
+	)
 
 
 func _on_edit_pressed() -> void:

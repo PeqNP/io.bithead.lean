@@ -29,6 +29,8 @@ func request(method: String, path: String, body: Dictionary) -> Dictionary:
 
 	if method == "POST":
 		return _handle_post(path, body)
+	if method == "DELETE":
+		return _handle_delete(path)
 
 	print("LocalBOSSBridgeBackend: unhandled %s %s" % [method, path])
 	return {}
@@ -136,6 +138,20 @@ func _handle_post(path: String, body: Dictionary) -> Dictionary:
 		return {}
 
 	print("LocalBOSSBridgeBackend: stub POST %s %s" % [path, str(body)])
+	return {}
+
+
+func _handle_delete(path: String) -> Dictionary:
+	var re := RegEx.new()
+
+	# DELETE /lean/line/{line_id}/station/{station_id}
+	re.compile("^/lean/line/(\\d+)/station/(\\d+)$")
+	var m := re.search(path)
+	if m:
+		_delete_station(int(m.get_string(1)), int(m.get_string(2)))
+		return {}
+
+	print("LocalBOSSBridgeBackend: unhandled DELETE %s" % path)
 	return {}
 
 
@@ -277,6 +293,22 @@ func _insert_station(line_id: int, body: Dictionary) -> void:
 			})
 
 	line_dict["stations"] = stations
+
+
+## Remove a station by id from its line.
+func _delete_station(line_id: int, station_id: int) -> void:
+	var lines: Array = (_snapshot.get("lines", []) as Array)
+	for l: Dictionary in lines:
+		if l.get("id", -1) == line_id:
+			var stations: Array = (l.get("stations", []) as Array)
+			for i in range(stations.size()):
+				if int((stations[i] as Dictionary).get("id", -1)) == station_id:
+					stations.remove_at(i)
+					l["stations"] = stations
+					return
+			push_warning("LocalBOSSBridgeBackend: station %d not found in line %d" % [station_id, line_id])
+			return
+	push_warning("LocalBOSSBridgeBackend: line %d not found" % line_id)
 
 
 # ---------------------------------------------------------------------------
