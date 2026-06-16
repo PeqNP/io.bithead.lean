@@ -87,6 +87,7 @@ func _input(event: InputEvent) -> void:
 		if inside != _hovered:
 			_hovered = inside
 			_controls.visible = _hovered
+			queue_redraw()
 			if not _is_first_station and not _add_mode:
 				for b in [_btn_up, _btn_down, _btn_left, _btn_right]:
 					b.visible = _hovered
@@ -260,6 +261,8 @@ func _draw() -> void:
 	var color_data = _data.get("color", null)
 	var fill   := _parse_color(color_data, "fill",   FILL_COLOR)
 	var border := _parse_color(color_data, "border", BORDER_COLOR)
+	if _hovered:
+		fill = fill.lightened(0.3)
 	draw_rect(Rect2(0, 0, _card_w, _card_h), fill)
 	draw_rect(Rect2(0, 0, _card_w, _card_h), border, false, BORDER_WIDTH)
 

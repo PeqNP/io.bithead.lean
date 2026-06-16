@@ -16,6 +16,7 @@ const SMALL_FONT   := 9
 var _data: Dictionary = {}       # Line-level data (for hopperWorkUnit)
 var _card_w: float = 0.0
 var _card_h: float = 0.0
+var _hovered: bool = false
 
 @onready var _layout:     VBoxContainer = $Layout
 @onready var _name_label: Label         = $Layout/Name
@@ -25,6 +26,7 @@ var _card_h: float = 0.0
 
 
 func _ready() -> void:
+	set_process_input(true)
 	_start_btn.pressed.connect(_on_start_pressed)
 	_start_btn.hide()
 	Palette.style_button(_start_btn, BORDER_COLOR)
@@ -69,8 +71,18 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	queue_redraw()
 
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var local := get_local_mouse_position()
+		var inside := Rect2(0, 0, _card_w, _card_h).has_point(local)
+		if inside != _hovered:
+			_hovered = inside
+			queue_redraw()
+
+
 func _draw() -> void:
-	draw_rect(Rect2(0, 0, _card_w, _card_h), FILL_COLOR)
+	var fill := FILL_COLOR.lightened(0.3) if _hovered else FILL_COLOR
+	draw_rect(Rect2(0, 0, _card_w, _card_h), fill)
 	draw_rect(Rect2(0, 0, _card_w, _card_h), BORDER_COLOR, false, BORDER_WIDTH)
 
 

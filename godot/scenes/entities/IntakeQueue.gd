@@ -53,6 +53,7 @@ func _input(event: InputEvent) -> void:
 		if inside != _hovered:
 			_hovered = inside
 			_controls.visible = _hovered
+			queue_redraw()
 
 
 ## Place and populate this card.
@@ -107,7 +108,8 @@ func _draw() -> void:
 	var color_data = _data.get("color", null)
 	var fill   := _parse_color(color_data, "fill",   DEFAULT_FILL)
 	var border := _parse_color(color_data, "border", DEFAULT_BORDER)
-
+	if _hovered:
+		fill = fill.lightened(0.3)
 	draw_rect(Rect2(0, 0, _card_w, _card_h), fill)
 	draw_rect(Rect2(0, 0, _card_w, _card_h), border, false, BORDER_WIDTH)
 
