@@ -503,7 +503,7 @@ func _on_station_delete_requested(station_id: int, _station_name: String) -> voi
 func _show_station_overlay(station: Node2D, overlay_type: String, card_x: float, card_top: float) -> void:
 	var overlay: Node2D = station.get_meta("overlay")
 	overlay.set_meta("active_type", overlay_type)
-	overlay.position = Vector2(card_x, card_top + station._card_h + 2)
+	overlay.position = Vector2(card_x, card_top + CARD_INSET_V + station._card_h + 2)
 	if overlay_type == "work_units":
 		overlay.show_work_units(station._data)
 	else:
