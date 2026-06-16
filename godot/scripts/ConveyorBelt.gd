@@ -1,24 +1,22 @@
 # Copyright © 2026 Bithead LLC. All rights reserved.
 #
-# ConveyorBelt — drop-in replacement for Conveyor.
+# ConveyorBelt — draws animated conveyor belts using a Node2D that manually
+# stamps oriented chevrons along the path every frame via _draw().  No shader
+# required.
 #
-# Uses Line2D + a tiled chevron texture + a UV-scrolling shader instead of
-# custom-drawn BeltLane nodes.  Because the shader runs on the GPU and derives
-# its offset from the built-in TIME uniform, every belt in every frame reads the
-# same clock value.  There is no per-node phase accumulation and therefore no
-# junction gap artefacts.
+# Each _BeltDrawer reads Time.get_ticks_msec() for its scroll phase, so every
+# belt in the scene shares the same clock and junctions are seamless.
 #
-# Public API is identical to Conveyor so callers only need to change the class
-# name.  InsertButton is preserved unchanged.
+# Public API matches the original Conveyor so callers only need to change the
+# class name.  InsertButton is preserved unchanged.
 #
 # Requires:
-#   res://shaders/conveyor_belt.gdshader  — the UV-scroll shader
-#   res://scripts/Palette.gd              — colour constants
+#   res://scripts/Palette.gd  — colour constants
 class_name ConveyorBelt
 extends Node
 
 # ---------------------------------------------------------------------------
-# Constants (same values as Conveyor so callers that reference them still work)
+# Constants
 # ---------------------------------------------------------------------------
 
 const BELT_COLOR  := Palette.BLUE_BELT
@@ -27,13 +25,13 @@ const BORDER_W    := 1.5
 const STUB_LEN    := 12.0
 
 # ---------------------------------------------------------------------------
-# Belt drawing — each returns the Line2D added to `parent`
+# Belt drawing
 # ---------------------------------------------------------------------------
 
 ## Draw a straight animated belt from `from` to `to`.
 static func draw_animated(from: Vector2, to: Vector2, parent: Node2D,
-		color: Color = BELT_COLOR, half_w: float = BELT_HALF_W) -> Line2D:
-	return _make_belt([from, to], color, half_w, parent)
+		color: Color = BELT_COLOR, half_w: float = BELT_HALF_W) -> Node2D:
+	return _make_belt([from, to], color, half_w, parent, true)
 
 
 ## Draw an L-shaped routed belt between two points with optional entry/exit
@@ -41,14 +39,14 @@ static func draw_animated(from: Vector2, to: Vector2, parent: Node2D,
 static func draw_routed(from: Vector2, to: Vector2, parent: Node2D,
 		color: Color = BELT_COLOR,
 		from_dir: Vector2 = Vector2.ZERO, to_dir: Vector2 = Vector2.ZERO,
-		avoid_rect: Rect2 = Rect2()) -> Line2D:
+		avoid_rect: Rect2 = Rect2()) -> Node2D:
 	if from_dir == Vector2.ZERO:
 		var dx := to.x - from.x
 		from_dir = Vector2(1.0 if dx >= 0.0 else -1.0, 0.0)
 	if to_dir == Vector2.ZERO:
 		to_dir = -from_dir
 	var waypoints := _build_stub_waypoints(from, from_dir, to, to_dir, STUB_LEN, avoid_rect)
-	return _make_belt(waypoints, color, BELT_HALF_W, parent)
+	return _make_belt(waypoints, color, BELT_HALF_W, parent, true)
 
 
 ## Draw a bidirectional routed belt (two parallel lanes, one each direction).
@@ -56,36 +54,28 @@ static func draw_routed_bidirectional(from: Vector2, from_dir: Vector2,
 		to: Vector2, to_dir: Vector2, parent: Node2D,
 		color: Color = BELT_COLOR, avoid_rect: Rect2 = Rect2()) -> void:
 	var center := _build_stub_waypoints(from, from_dir, to, to_dir, STUB_LEN, avoid_rect)
-	# Lane A: forward (from → to), offset CCW by BELT_HALF_W.
 	var lane_a: Array[Vector2] = _offset_lane(center, BELT_HALF_W)
-	_make_belt(lane_a, color, BELT_HALF_W, parent)
-	# Lane B: reverse (to → from), offset the other way.
+	_make_belt(lane_a, color, BELT_HALF_W, parent, true)
 	var center_rev: Array[Vector2] = center.duplicate()
 	center_rev.reverse()
 	var lane_b: Array[Vector2] = _offset_lane(center_rev, BELT_HALF_W)
-	_make_belt(lane_b, color, BELT_HALF_W, parent)
+	_make_belt(lane_b, color, BELT_HALF_W, parent, true)
 
 
-## Draw a plain non-animated belt (static, no shader).
-static func draw_static(from: Vector2, to: Vector2, parent: Node2D) -> Line2D:
-	var line := Line2D.new()
-	line.add_point(from)
-	line.add_point(to)
-	line.width = BELT_HALF_W * 2.0
-	line.default_color = BELT_COLOR
-	parent.add_child(line)
-	return line
+## Draw a plain non-animated belt (no chevrons).
+static func draw_static(from: Vector2, to: Vector2, parent: Node2D) -> Node2D:
+	return _make_belt([from, to], BELT_COLOR, BELT_HALF_W, parent, false)
 
 
 ## Draw a short stub in `dir` from `from_pt` (used to show exit direction).
 static func draw_stub_terminal(from_pt: Vector2, dir: Vector2, parent: Node2D,
 		color: Color = BELT_COLOR) -> void:
 	var to_pt := from_pt + dir * (STUB_LEN * 1.5)
-	_make_belt([from_pt, to_pt], color, BELT_HALF_W, parent)
+	_make_belt([from_pt, to_pt], color, BELT_HALF_W, parent, true)
 
 
 # ---------------------------------------------------------------------------
-# Path geometry helpers (identical logic to Conveyor)
+# Path geometry helpers
 # ---------------------------------------------------------------------------
 
 ## Returns the world-space midpoint of a multi-segment path by arc length.
@@ -188,74 +178,136 @@ static func _offset_lane(pts: Array[Vector2], dist: float) -> Array[Vector2]:
 
 
 # ---------------------------------------------------------------------------
-# Internal belt factory
+# Internal factory
 # ---------------------------------------------------------------------------
 
 static func _make_belt(waypoints: Array[Vector2], color: Color,
-		half_w: float, parent: Node2D) -> Line2D:
-	var line := Line2D.new()
-	for pt in waypoints:
-		line.add_point(pt)
-	line.width = half_w * 2.0
-	line.default_color = color
-
-	var tex := _chevron_texture(color)
-	line.texture = tex
-	line.texture_mode = Line2D.LINE_TEXTURE_TILE
-
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/conveyor_belt.gdshader")
-	line.material = mat
-
-	parent.add_child(line)
-	return line
+		half_w: float, parent: Node2D, animated: bool) -> Node2D:
+	var drawer := _BeltDrawer.new()
+	drawer.setup(waypoints, color, half_w, animated)
+	parent.add_child(drawer)
+	return drawer
 
 
-## Generates a 64×12 px Image with repeating ›-chevrons baked in, then wraps it
-## in an ImageTexture.  Called once per belt; cheap enough at construction time.
-static func _chevron_texture(color: Color, width: int = 64, height: int = 16) -> ImageTexture:
-	var img := Image.create(width, height, false, Image.FORMAT_RGBA8)
-	
-	# Background
-	var bg := Color(color.r, color.g, color.b, 0.35)
-	img.fill(bg)
-	
-	var fg := Color(color.r, color.g, color.b, 1.0)
-	
-	var half_h := height / 2
-	var arm := int(half_h * 0.9)   # Much longer arms → better looking chevrons
-	
-	# Draw two chevrons per tile
-	for cx in [width / 4, width * 3 / 4]:
-		for y in range(height):
-			if y <= half_h:
-				# Upper arm
-				var t := float(y) / float(half_h)
-				var x: int = cx - arm + int(t * float(arm))
-				_draw_thick_pixel(img, x, y, fg, 2)   # thickness = 2
-			else:
-				# Lower arm
-				var t := float(y - half_h) / float(half_h)
-				var x: int = cx - int(t * float(arm))
-				_draw_thick_pixel(img, x, y, fg, 2)
+# ---------------------------------------------------------------------------
+# _BeltDrawer — Node2D that draws belt fill, chevrons, and rails each frame
+# ---------------------------------------------------------------------------
 
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
+class _BeltDrawer extends Node2D:
+	const CHEVRON_SPACING := 18.0   # pixels between chevron centres along path
+	const CHEVRON_SPEED   := 40.0   # pixels per second (shared global clock)
 
+	var _waypoints : PackedVector2Array
+	var _color     : Color
+	var _half_w    : float
+	var _animated  : bool
 
-static func _draw_thick_pixel(img: Image, x: int, y: int, color: Color, thickness: int = 2):
-	for dx in range(-thickness / 2, thickness / 2 + 1):
-		for dy in range(-thickness / 2, thickness / 2 + 1):
-			var px := x + dx
-			var py := y + dy
-			if px >= 0 and px < img.get_width() and py >= 0 and py < img.get_height():
-				img.set_pixel(px, py, color)
+	func setup(waypoints: Array[Vector2], color: Color,
+			half_w: float, animated: bool) -> void:
+		_waypoints = PackedVector2Array(waypoints)
+		_color     = color
+		_half_w    = half_w
+		_animated  = animated
 
+	func _process(_delta: float) -> void:
+		if _animated:
+			queue_redraw()
 
-static func _draw_thick(img: Image, x: int, y: int, color: Color) -> void:
-	for dx: int in [-1, 0, 1]:
-		var px: int = clampi(x + dx, 0, img.get_width() - 1)
-		img.set_pixel(px, y, color)
+	func _draw() -> void:
+		if _waypoints.size() < 2:
+			return
+		_draw_fill()
+		if _animated:
+			_draw_chevrons()
+		_draw_rails()
+
+	# -------------------------------------------------------------------------
+	# Belt fill — semi-transparent quads along each path segment
+	# -------------------------------------------------------------------------
+
+	func _draw_fill() -> void:
+		var fill := Color(_color.r, _color.g, _color.b, 0.45)
+		for i in range(_waypoints.size() - 1):
+			var a    : Vector2 = _waypoints[i]
+			var b    : Vector2 = _waypoints[i + 1]
+			var dir  := (b - a).normalized()
+			var perp := Vector2(-dir.y, dir.x) * _half_w
+			var quad := PackedVector2Array([a + perp, b + perp, b - perp, a - perp])
+			draw_colored_polygon(quad, fill)
+
+	# -------------------------------------------------------------------------
+	# Chevrons — ">" stamps, oriented along path, driven by global clock
+	# -------------------------------------------------------------------------
+
+	func _draw_chevrons() -> void:
+		var total_len := _path_length()
+		if total_len < 0.001:
+			return
+		# Global clock: all belts share the same phase so junctions are seamless.
+		var t_sec := Time.get_ticks_msec() * 0.001
+		var phase := fmod(t_sec * CHEVRON_SPEED, CHEVRON_SPACING)
+		var fg := Color(
+			minf(_color.r * 1.8, 1.0),
+			minf(_color.g * 1.8, 1.0),
+			minf(_color.b * 1.8, 1.0),
+			0.95)
+		var tip_x  :=  _half_w * 0.35
+		var back_x := -_half_w * 0.35
+		var arm_y  :=  _half_w * 0.75
+		var dist   := phase
+		while dist < total_len:
+			var info  := _point_at_dist(dist)
+			var pos   : Vector2 = info[0]
+			var angle : float   = info[1]
+			draw_set_transform(pos, angle, Vector2.ONE)
+			draw_line(Vector2(back_x, -arm_y), Vector2(tip_x, 0.0), fg, 2.0, true)
+			draw_line(Vector2(back_x,  arm_y), Vector2(tip_x, 0.0), fg, 2.0, true)
+			dist += CHEVRON_SPACING
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+	# -------------------------------------------------------------------------
+	# Side rails
+	# -------------------------------------------------------------------------
+
+	func _draw_rails() -> void:
+		var rail := Color(
+			minf(_color.r * 1.3, 1.0),
+			minf(_color.g * 1.3, 1.0),
+			minf(_color.b * 1.3, 1.0),
+			1.0)
+		for i in range(_waypoints.size() - 1):
+			var a    : Vector2 = _waypoints[i]
+			var b    : Vector2 = _waypoints[i + 1]
+			var dir  := (b - a).normalized()
+			var perp := Vector2(-dir.y, dir.x) * _half_w
+			draw_line(a + perp, b + perp, rail, 1.5, true)
+			draw_line(a - perp, b - perp, rail, 1.5, true)
+
+	# -------------------------------------------------------------------------
+	# Path helpers
+	# -------------------------------------------------------------------------
+
+	func _path_length() -> float:
+		var total := 0.0
+		for i in range(_waypoints.size() - 1):
+			total += _waypoints[i].distance_to(_waypoints[i + 1])
+		return total
+
+	# Returns [pos: Vector2, angle: float] at `dist` pixels along the path.
+	func _point_at_dist(dist: float) -> Array:
+		var acc := 0.0
+		for i in range(_waypoints.size() - 1):
+			var a       : Vector2 = _waypoints[i]
+			var b       : Vector2 = _waypoints[i + 1]
+			var seg_len := a.distance_to(b)
+			if acc + seg_len >= dist:
+				var t   := (dist - acc) / seg_len
+				var pos := a.lerp(b, t)
+				return [pos, (b - a).angle()]
+			acc += seg_len
+		var last : Vector2 = _waypoints[_waypoints.size() - 1]
+		var prev : Vector2 = _waypoints[_waypoints.size() - 2]
+		return [last, (last - prev).angle()]
 
 
 # ---------------------------------------------------------------------------
