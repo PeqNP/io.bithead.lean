@@ -177,12 +177,7 @@ func update(data: Dictionary) -> void:
 
 
 func set_grayed(grayed: bool) -> void:
-	if grayed:
-		var mat := ShaderMaterial.new()
-		mat.shader = load("res://shaders/gray_out.gdshader")
-		material = mat
-	else:
-		material = null
+	modulate = Color(0.5, 0.5, 0.5, 0.8) if grayed else Color.WHITE
 
 
 ## Called by FactoryFloor when camera zoom index changes.

@@ -709,14 +709,18 @@ func _on_focus_toggled(entity_id: int, focused: bool) -> void:
 func _apply_focus_shader() -> void:
 	# Build the set of entity IDs that should stay full opacity when focus is active.
 	# A focused entity keeps itself and all entities it connects to.
+	# Keys are typed — "line:{id}" or "inv:{id}" — to avoid conflicts between
+	# lines and inventories that share the same numeric id.
 	var visible_ids: Dictionary = {}
 	if _focus_active:
 		for child in $Entities.get_children():
 			if child == _drag_overlay or not child.has_method("set_grayed"):
 				continue
 			if child._focused:
-				visible_ids[child._entity_id] = true
-				_collect_connected_ids(child._entity_id, visible_ids)
+				var key: String = "line:%d" % child._entity_id if child.get_meta("is_line", false) \
+						else "inv:%d" % child._entity_id
+				visible_ids[key] = true
+				_collect_connected_ids(child._entity_id, child.get_meta("is_line", false), visible_ids)
 
 	for child in $Entities.get_children():
 		if child == _drag_overlay:
@@ -724,13 +728,16 @@ func _apply_focus_shader() -> void:
 		if not child.has_method("set_grayed"):
 			continue
 		if _focus_active:
-			child.set_grayed(!visible_ids.has(child._entity_id))
+			var key: String = "line:%d" % child._entity_id if child.get_meta("is_line", false) \
+					else "inv:%d" % child._entity_id
+			child.set_grayed(!visible_ids.has(key))
 		else:
 			child.set_grayed(false)
 
 
 ## Collect all entity IDs connected (directly) to entity_id via station links.
-func _collect_connected_ids(entity_id: int, result: Dictionary) -> void:
+## Keys in result are typed strings — "line:{id}" or "inv:{id}".
+func _collect_connected_ids(entity_id: int, is_line: bool, result: Dictionary) -> void:
 	for line_data in _snapshot.get("lines", []):
 		var c_line_id: int = line_data.get("id", 0)
 		for st in (line_data.get("stations", []) as Array):
@@ -739,12 +746,15 @@ func _collect_connected_ids(entity_id: int, result: Dictionary) -> void:
 			var inv_id: int = int(inv_raw) if inv_raw != null else 0
 			var sub_id: int = int(sub_raw) if sub_raw != null else 0
 			# Focused line → mark its connected inventory and sub-line.
-			if c_line_id == entity_id:
-				if inv_id != 0: result[inv_id] = true
-				if sub_id != 0: result[sub_id] = true
-			# Focused inventory or sub-line → mark the line that references it.
-			if inv_id == entity_id or sub_id == entity_id:
-				result[c_line_id] = true
+			if is_line and c_line_id == entity_id:
+				if inv_id != 0: result["inv:%d" % inv_id] = true
+				if sub_id != 0: result["line:%d" % sub_id] = true
+			# Focused inventory → mark the line that references it.
+			if not is_line and inv_id == entity_id:
+				result["line:%d" % c_line_id] = true
+			# Focused sub-line → mark the line that references it.
+			if is_line and sub_id == entity_id:
+				result["line:%d" % c_line_id] = true
 
 
 ## Rebuild all cross-entity conveyor belts from the last snapshot.

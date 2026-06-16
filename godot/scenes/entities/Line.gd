@@ -215,14 +215,10 @@ func update(data: Dictionary) -> void:
 	configure(data)
 
 
-## Apply or remove the gray-out shader (unfocused state).
+## Apply or remove the gray-out effect (unfocused state).
+## Uses modulate so the effect propagates to all child entities.
 func set_grayed(grayed: bool) -> void:
-	if grayed:
-		var mat := ShaderMaterial.new()
-		mat.shader = load("res://shaders/gray_out.gdshader")
-		material = mat
-	else:
-		material = null
+	modulate = Color(0.5, 0.5, 0.5, 0.8) if grayed else Color.WHITE
 
 
 func _draw() -> void:
