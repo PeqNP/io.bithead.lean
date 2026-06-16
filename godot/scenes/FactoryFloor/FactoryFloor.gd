@@ -365,6 +365,10 @@ func _on_create_inventory() -> void:
 
 
 func _on_create_intake_queue(line_id: int) -> void:
+	if not is_web():
+		await BOSSBridge.post("/lean/line/%d/intake-queue" % line_id, {})
+		BOSSBridge.poll_snapshot()
+		return
 	_boss.receive("open-window", {
 		"controller": "CreateFactoryModel",
 		"parameters": ["intake-queue", line_id],
@@ -372,6 +376,10 @@ func _on_create_intake_queue(line_id: int) -> void:
 
 
 func _on_create_station(line_id: int) -> void:
+	if not is_web():
+		await BOSSBridge.post("/lean/line/%d/station" % line_id, {})
+		BOSSBridge.poll_snapshot()
+		return
 	_boss.receive("open-window", {
 		"controller": "CreateFactoryModel",
 		"parameters": ["station", line_id],
@@ -388,6 +396,19 @@ func _on_insert_station(line_id: int, index) -> void:
 
 func _on_delete_station(line_id: int, station_id: int) -> void:
 	await BOSSBridge.delete("/lean/line/%d/station/%d" % [line_id, station_id])
+	BOSSBridge.poll_snapshot()
+
+
+func _on_insert_intake_queue(line_id: int, index) -> void:
+	var body: Dictionary = {}
+	if index != null:
+		body["index"] = index
+	await BOSSBridge.post("/lean/line/%d/intake-queue" % line_id, body)
+	BOSSBridge.poll_snapshot()
+
+
+func _on_delete_intake_queue(line_id: int, queue_id: int) -> void:
+	await BOSSBridge.delete("/lean/line/%d/intake-queue/%d" % [line_id, queue_id])
 	BOSSBridge.poll_snapshot()
 
 
@@ -609,6 +630,8 @@ func _wire_entity_signals(entity: Node2D, tile_w: int, tile_h: int) -> void:
 		entity.create_station_requested.connect(_on_create_station)
 		entity.insert_station_requested.connect(_on_insert_station)
 		entity.delete_station_requested.connect(_on_delete_station)
+		entity.insert_intake_queue_requested.connect(_on_insert_intake_queue)
+		entity.delete_intake_queue_requested.connect(_on_delete_intake_queue)
 
 
 func _on_move_requested(entity: Node2D, tile_w: int, tile_h: int) -> void:

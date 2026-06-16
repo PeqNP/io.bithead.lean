@@ -137,6 +137,13 @@ func _handle_post(path: String, body: Dictionary) -> Dictionary:
 		_insert_station(int(m.get_string(1)), body)
 		return {}
 
+	# POST /lean/line/{id}/intake-queue  body: {index: int (0-based) | absent for append}
+	re.compile("^/lean/line/(\\d+)/intake-queue$")
+	m = re.search(path)
+	if m:
+		_insert_intake_queue(int(m.get_string(1)), body)
+		return {}
+
 	print("LocalBOSSBridgeBackend: stub POST %s %s" % [path, str(body)])
 	return {}
 
@@ -149,6 +156,13 @@ func _handle_delete(path: String) -> Dictionary:
 	var m := re.search(path)
 	if m:
 		_delete_station(int(m.get_string(1)), int(m.get_string(2)))
+		return {}
+
+	# DELETE /lean/line/{line_id}/intake-queue/{queue_id}
+	re.compile("^/lean/line/(\\d+)/intake-queue/(\\d+)$")
+	m = re.search(path)
+	if m:
+		_delete_intake_queue(int(m.get_string(1)), int(m.get_string(2)))
 		return {}
 
 	print("LocalBOSSBridgeBackend: unhandled DELETE %s" % path)
@@ -307,6 +321,58 @@ func _delete_station(line_id: int, station_id: int) -> void:
 					l["stations"] = stations
 					return
 			push_warning("LocalBOSSBridgeBackend: station %d not found in line %d" % [station_id, line_id])
+			return
+	push_warning("LocalBOSSBridgeBackend: line %d not found" % line_id)
+
+
+## Insert a new intake queue into a line.
+## body["index"] (0-based) inserts at that position; absent or null means append.
+func _insert_intake_queue(line_id: int, body: Dictionary) -> void:
+	var lines: Array = (_snapshot.get("lines", []) as Array)
+	var line_dict: Dictionary = {}
+	for l: Dictionary in lines:
+		if l.get("id", -1) == line_id:
+			line_dict = l
+			break
+	if line_dict.is_empty():
+		push_warning("LocalBOSSBridgeBackend: line %d not found" % line_id)
+		return
+	var queues: Array = (line_dict.get("intakeQueues", []) as Array)
+	# Generate new id (max existing + 1, minimum 1).
+	var new_id: int = 1
+	for q: Dictionary in queues:
+		var qid: int = int(q.get("id", 0))
+		if qid >= new_id:
+			new_id = qid + 1
+	var new_queue := {
+		"id": new_id,
+		"name": "New Intake Queue",
+		"mixRatio": null,
+		"cycleTime": 3600,
+		"numWorkUnits": 0,
+		"color": null,
+	}
+	var raw_index = body.get("index", null)
+	if raw_index == null:
+		queues.append(new_queue)
+	else:
+		var idx: int = clamp(int(raw_index), 0, queues.size())
+		queues.insert(idx, new_queue)
+	line_dict["intakeQueues"] = queues
+
+
+## Remove an intake queue by id from its line.
+func _delete_intake_queue(line_id: int, queue_id: int) -> void:
+	var lines: Array = (_snapshot.get("lines", []) as Array)
+	for l: Dictionary in lines:
+		if l.get("id", -1) == line_id:
+			var queues: Array = (l.get("intakeQueues", []) as Array)
+			for i in range(queues.size()):
+				if int((queues[i] as Dictionary).get("id", -1)) == queue_id:
+					queues.remove_at(i)
+					l["intakeQueues"] = queues
+					return
+			push_warning("LocalBOSSBridgeBackend: intake queue %d not found in line %d" % [queue_id, line_id])
 			return
 	push_warning("LocalBOSSBridgeBackend: line %d not found" % line_id)
 

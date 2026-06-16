@@ -54,8 +54,13 @@ signal create_station_requested(line_id: int)
 ## Emitted when the user taps a + button to insert a station.
 ## index is the array-position for the new station; null means append after last.
 signal insert_station_requested(line_id: int, index)
+## Emitted when the user taps a + button to insert an intake queue.
+## index is the 0-based position for the new queue; null means append after last.
+signal insert_intake_queue_requested(line_id: int, index)
 ## Emitted when the user confirms deletion of a station.
 signal delete_station_requested(line_id: int, station_id: int)
+## Emitted when the user confirms deletion of an intake queue.
+signal delete_intake_queue_requested(line_id: int, queue_id: int)
 
 var _data: Dictionary = {}
 var _entity_id: int = 0
@@ -72,13 +77,14 @@ var _expansion_blocked_right: bool = false
 var _expansion_blocked_down: bool = false
 var _station_insert_blocked: bool = false
 var _insert_btns: Node2D = null
-var _station_toolbar: Node2D = null   # toggle + Add/Delete row above first station
+var _station_toolbar: EntityToolbar = null  # toggle + Add/Delete above first station
 var _add_mode: bool = false
 var _delete_mode: bool = false
-var _toolbar_toggle_btn: Button = null
-var _toolbar_add_btn: Button = null
-var _toolbar_delete_btn: Button = null
-var _toolbar_open: bool = false
+var _intake_toolbar: EntityToolbar = null   # toggle + Add/Delete above first intake queue
+var _iq_nodes: Array[Node] = []             # IntakeQueue instances from last rebuild
+var _intake_add_mode: bool = false
+var _intake_delete_mode: bool = false
+var _intake_insert_btns: Node2D = null
 
 @onready var _label:            Label         = $Label
 @onready var _sections:         Node2D        = $Sections
@@ -115,8 +121,24 @@ func _ready() -> void:
 	_controls.resized.connect(_reposition_controls)
 	_insert_btns = Node2D.new()
 	add_child(_insert_btns)
-	_station_toolbar = Node2D.new()
+	_intake_insert_btns = Node2D.new()
+	add_child(_intake_insert_btns)
+	_station_toolbar = EntityToolbar.new()
 	add_child(_station_toolbar)
+	_station_toolbar.visible = false
+	_station_toolbar.add_mode_changed.connect(func(on: bool):
+		_set_add_mode(on)
+		_rebuild_conveyors()
+	)
+	_station_toolbar.delete_mode_changed.connect(_set_delete_mode)
+	_intake_toolbar = EntityToolbar.new()
+	add_child(_intake_toolbar)
+	_intake_toolbar.visible = false
+	_intake_toolbar.add_mode_changed.connect(func(on: bool):
+		_set_intake_add_mode(on)
+		_rebuild_intake_insert_buttons()
+	)
+	_intake_toolbar.delete_mode_changed.connect(_set_intake_delete_mode)
 
 	# Position intake-empty label — CONTENT_TOP is always the top value used.
 	var intake_card_w := float(INTAKE_W - CARD_INSET_H * 2)
@@ -334,6 +356,7 @@ func _station_card_edge(pos_x: int, pos_y: int, edge_dir: Vector2) -> Vector2:
 
 func _rebuild_sections() -> void:
 	_station_nodes.clear()
+	_iq_nodes.clear()
 	for child in _sections.get_children():
 		child.queue_free()
 	for ov in _overlays:
@@ -359,6 +382,7 @@ func _rebuild_intake_queues(top: float, _h: float) -> void:
 
 	_intake_empty_lbl.hide()
 	if intake_queues.is_empty():
+		_intake_toolbar.visible = false
 		var btn := Button.new()
 		btn.text = "Create intake queue"
 		btn.position = Vector2(CARD_INSET_H, top + CARD_INSET_V)
@@ -368,12 +392,22 @@ func _rebuild_intake_queues(top: float, _h: float) -> void:
 		btn.pressed.connect(func(): create_intake_queue_requested.emit(_entity_id))
 		return
 
+	# Show intake toolbar above first intake queue.
+	var iq_toolbar_y := float(CONTENT_TOP) - EntityToolbar.BTN_H + 6.0
+	_intake_toolbar.setup(float(CARD_INSET_H), iq_toolbar_y)
+	_intake_toolbar.visible = true
+
 	# Stack intake queues vertically from CONTENT_TOP downward.
 	for i in intake_queues.size():
 		var card_y := top + CARD_INSET_V + i * (slot_h + SECTION_PAD)
 		var iq := INTAKE_QUEUE_SCENE.instantiate()
 		_sections.add_child(iq)
 		iq.configure(intake_queues[i], CARD_INSET_H, card_y, card_w, card_h)
+		_iq_nodes.append(iq)
+		if iq.has_signal("delete_requested"):
+			iq.delete_requested.connect(_on_iq_delete_requested)
+		iq.set_add_mode(_intake_add_mode)
+		iq.set_delete_mode(_intake_delete_mode)
 
 
 func _rebuild_hopper(top: float, h: float) -> void:
@@ -395,6 +429,7 @@ func _rebuild_stations(top: float, h: float) -> void:
 	var card_h  := h - CARD_INSET_V * 2.0
 
 	if stations.is_empty():
+		_station_toolbar.visible = false
 		var btn := Button.new()
 		btn.text = "Create station"
 		btn.position = Vector2(zone_x + CARD_INSET_H, top + CARD_INSET_V)
@@ -449,6 +484,13 @@ func _rebuild_stations(top: float, h: float) -> void:
 		if saved != "none":
 			var restore_type := "work_units" if saved == "workUnits" else "operations"
 			_show_station_overlay(station, restore_type, card_x, row_y)
+
+	# Position the station toolbar above the first station card.
+	var first_s := stations[0] as Dictionary
+	var first_px_s: int = first_s.get("posX", 0)
+	var st_card_left := float(INTAKE_W + HOPPER_W) + first_px_s * float(STATION_W) + CARD_INSET_H
+	_station_toolbar.setup(st_card_left, float(CONTENT_TOP) - EntityToolbar.BTN_H + 6.0)
+	_station_toolbar.visible = true
 
 
 func _on_station_move_requested(station_id: int, new_pos_x: int, new_pos_y: int) -> void:
@@ -706,98 +748,65 @@ func _rebuild_conveyors() -> void:
 		)
 
 	_rebuild_station_insert_buttons()
-	_rebuild_station_toolbar()
+	_rebuild_intake_insert_buttons()
 
 
-## Builds (or rebuilds) the small toolbar above the first station.
-## Shows a circle toggle button; when open, shows Add and Delete buttons.
-func _rebuild_station_toolbar() -> void:
-	for child in _station_toolbar.get_children():
+## Draw all + insert-intake-queue buttons above/below/between intake queues.
+## Only shown when intake Add mode is active.
+func _rebuild_intake_insert_buttons() -> void:
+	for child in _intake_insert_btns.get_children():
 		child.queue_free()
-	_toolbar_toggle_btn = null
-	_toolbar_add_btn    = null
-	_toolbar_delete_btn = null
-
-	var stations: Array = _data.get("stations", [])
-	if stations.is_empty():
+	if not _intake_add_mode:
+		return
+	var queues: Array = _data.get("intakeQueues", [])
+	if queues.is_empty():
 		return
 
-	# X position: left edge of first station card.
-	var first := stations[0] as Dictionary
-	var first_px: int = first.get("posX", 0)
-	var card_left := float(INTAKE_W + HOPPER_W) + first_px * float(STATION_W) + CARD_INSET_H
+	var slot_h := 2.0 * TILE_SIZE
+	var card_h := slot_h - CARD_INSET_V * 2.0
+	var card_w := float(INTAKE_W - CARD_INSET_H * 2)
+	var btn_size := Vector2(16.0, 16.0)
+	var btn_center_x := CARD_INSET_H + card_w / 2.0
 
-	const BTN_H     := 24.0
-	const BTN_GAP   := 4.0
-	const ABOVE_PAD := -6.0
-	var toolbar_y := float(CONTENT_TOP) - BTN_H - ABOVE_PAD
+	var _make_btn := func(btn_y: float, idx) -> void:
+		var btn := ConveyorBelt.InsertButton.new()
+		btn.position = Vector2(btn_center_x - btn_size.x * 0.5, btn_y)
+		btn.setup(Palette.GREEN, false, "")
+		btn.pressed.connect(func(): insert_intake_queue_requested.emit(_entity_id, idx))
+		_intake_insert_btns.add_child(btn)
 
-	# Toggle button: circle when closed, right-pointing triangle when open.
-	# Height matches Add/Delete buttons (content margins drive height, no fixed min-h).
-	var toggle_btn := Button.new()
-	toggle_btn.toggle_mode = true
-	toggle_btn.button_pressed = _toolbar_open
-	toggle_btn.custom_minimum_size = Vector2(BTN_H, BTN_H)
-	toggle_btn.position = Vector2(card_left, toolbar_y)
-	Palette.style_edit_button(toggle_btn)
-	toggle_btn.text = ""
-	var center_wrap := CenterContainer.new()
-	center_wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
-	center_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if _toolbar_open:
-		DrawShape.triangle(center_wrap, false, Vector2(8.0, 8.0), Color.WHITE, true)
-	else:
-		DrawShape.circle(center_wrap, Vector2(8.0, 8.0))
-	toggle_btn.add_child(center_wrap)
-	toggle_btn.pressed.connect(_on_toolbar_toggle)
-	_station_toolbar.add_child(toggle_btn)
-	_toolbar_toggle_btn = toggle_btn
+	# Above first queue: button bottom abuts card top.
+	var card_y_0 := float(CONTENT_TOP) + CARD_INSET_V
+	_make_btn.call(card_y_0 - btn_size.y, 0)
 
-	if _toolbar_open:
-		var btn_x := card_left + BTN_H + BTN_GAP
+	# Between queues: centered in the gap.
+	for i in range(queues.size() - 1):
+		var card_bottom_i := float(CONTENT_TOP) + CARD_INSET_V + i * (slot_h + SECTION_PAD) + card_h
+		var gap := CARD_INSET_V + SECTION_PAD + CARD_INSET_V
+		_make_btn.call(card_bottom_i + (gap - btn_size.y) * 0.5, i + 1)
 
-		# Add button.
-		var add_btn := Button.new()
-		add_btn.text = "Add"
-		add_btn.toggle_mode = true
-		add_btn.button_pressed = _add_mode
-		add_btn.position = Vector2(btn_x, toolbar_y)
-		add_btn.add_theme_font_size_override("font_size", 9)
-		Palette.style_button(add_btn, Palette.GREEN)
-		add_btn.pressed.connect(_on_toolbar_add)
-		_station_toolbar.add_child(add_btn)
-		_toolbar_add_btn = add_btn
-
-		# Delete button.
-		var del_btn := Button.new()
-		del_btn.text = "Delete"
-		del_btn.toggle_mode = true
-		del_btn.button_pressed = _delete_mode
-		del_btn.position = Vector2(btn_x + add_btn.get_minimum_size().x + BTN_GAP, toolbar_y)
-		del_btn.add_theme_font_size_override("font_size", 9)
-		Palette.style_button(del_btn, Palette.RED)
-		del_btn.pressed.connect(_on_toolbar_delete)
-		_station_toolbar.add_child(del_btn)
-		_toolbar_delete_btn = del_btn
+	# Below last queue: button top abuts card bottom.
+	var last_i := queues.size() - 1
+	var card_bottom_last := float(CONTENT_TOP) + CARD_INSET_V + last_i * (slot_h + SECTION_PAD) + card_h
+	_make_btn.call(card_bottom_last, null)
 
 
-func _on_toolbar_toggle() -> void:
-	_toolbar_open = !_toolbar_open
-	if not _toolbar_open:
-		# Closing toolbar: turn off both modes.
-		_set_add_mode(false)
-		_set_delete_mode(false)
-	_rebuild_conveyors()
+func _set_intake_add_mode(on: bool) -> void:
+	_intake_add_mode = on
+	for iq in _iq_nodes:
+		if iq.has_method("set_add_mode"):
+			iq.set_add_mode(on)
 
 
-func _on_toolbar_add() -> void:
-	_set_add_mode(!_add_mode)
-	_rebuild_conveyors()
+func _set_intake_delete_mode(on: bool) -> void:
+	_intake_delete_mode = on
+	for iq in _iq_nodes:
+		if iq.has_method("set_delete_mode"):
+			iq.set_delete_mode(on)
 
 
-func _on_toolbar_delete() -> void:
-	_set_delete_mode(!_delete_mode)
-	_rebuild_station_toolbar()
+func _on_iq_delete_requested(queue_id: int, _queue_name: String) -> void:
+	delete_intake_queue_requested.emit(_entity_id, queue_id)
 
 
 func _set_add_mode(on: bool) -> void:

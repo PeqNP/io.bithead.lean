@@ -12,10 +12,13 @@ const BORDER_WIDTH  := 2.0
 const DEFAULT_FILL  := Palette.BG_1
 const DEFAULT_BORDER := Palette.BLUE
 
+signal delete_requested(queue_id: int, queue_name: String)
+
 var _data: Dictionary = {}
 var _card_w: float = 0.0
 var _card_h: float = 0.0
 var _hovered: bool = false
+var _delete_btn: Button = null
 
 @onready var _layout:       VBoxContainer = $Layout
 @onready var _name_label:   Label         = $Layout/Name
@@ -33,6 +36,14 @@ func _ready() -> void:
 	_edit_btn.pressed.connect(_on_edit_pressed)
 	_controls.resized.connect(_reposition_controls)
 	_controls.hide()
+	_delete_btn = Button.new()
+	_delete_btn.text = "Delete"
+	_delete_btn.add_theme_font_size_override("font_size", SMALL_FONT)
+	_delete_btn.custom_minimum_size = Vector2(0.0, 18.0)
+	Palette.style_button(_delete_btn, Palette.RED)
+	_delete_btn.pressed.connect(_on_delete_pressed)
+	_delete_btn.hide()
+	add_child(_delete_btn)
 
 
 func _input(event: InputEvent) -> void:
@@ -52,6 +63,8 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	_card_w = card_w
 	_card_h = card_h
 	position = Vector2(card_x, card_y)
+	_delete_btn.position = Vector2(4.0, 4.0)
+	_delete_btn.custom_minimum_size = Vector2(_card_w - 8.0, 0.0)
 
 	_layout.position = Vector2(4, 4)
 	_layout.size = Vector2(card_w - 8, card_h - 8)
@@ -103,6 +116,26 @@ func _draw() -> void:
 
 func _on_wu_pressed(iq_id: int) -> void:
 	BOSSBridge.open_window("WorkUnits", [iq_id])
+
+
+func set_add_mode(_on: bool) -> void:
+	pass  # Intake queues have no move buttons to suppress.
+
+
+func set_delete_mode(on: bool) -> void:
+	if on:
+		_delete_btn.show()
+	else:
+		_delete_btn.hide()
+
+
+func _on_delete_pressed() -> void:
+	var iq_name := str(_data.get("name", ""))
+	var iq_id: int = int(_data.get("id", 0))
+	BOSSBridge.show_delete_modal(
+		"Delete intake queue '%s'?" % iq_name,
+		func(): delete_requested.emit(iq_id, iq_name)
+	)
 
 
 func _on_edit_pressed() -> void:
