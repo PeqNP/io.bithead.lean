@@ -51,6 +51,9 @@ signal lock_toggled(entity_id: int, locked: bool)
 signal create_intake_queue_requested(line_id: int)
 ## Emitted when the user wants to create a station on this line.
 signal create_station_requested(line_id: int)
+## Emitted when the user taps a + button to insert a station.
+## index is the array-position for the new station; null means append after last.
+signal insert_station_requested(line_id: int, index)
 
 var _data: Dictionary = {}
 var _entity_id: int = 0
@@ -65,6 +68,8 @@ var _overlays: Array[Node] = []      # StationOverlay instances, one per station
 var _station_nodes: Array[Node] = [] # Station instances from last _rebuild_stations()
 var _expansion_blocked_right: bool = false
 var _expansion_blocked_down: bool = false
+var _station_insert_blocked: bool = false
+var _insert_btns: Node2D = null
 
 @onready var _label:            Label         = $Label
 @onready var _sections:         Node2D        = $Sections
@@ -99,6 +104,8 @@ func _ready() -> void:
 	_focus_btn.pressed.connect(_on_focus_pressed)
 	_lock_btn.pressed.connect(_on_lock_pressed)
 	_controls.resized.connect(_reposition_controls)
+	_insert_btns = Node2D.new()
+	add_child(_insert_btns)
 
 	# Position intake-empty label — CONTENT_TOP is always the top value used.
 	var intake_card_w := float(INTAKE_W - CARD_INSET_H * 2)
@@ -477,6 +484,119 @@ func _rebuild_output_placeholder(top: float, h: float) -> void:
 	output.configure(x, top + CARD_INSET_V, OUTPUT_W - CARD_INSET_H * 2, h - CARD_INSET_V * 2.0, int(_data.get("id", 0)))
 
 
+
+## Update the blocked state for station-insert + buttons, then rebuild conveyors
+## (which also rebuilds the + buttons).
+func set_station_insert_blocked(blocked: bool) -> void:
+	_station_insert_blocked = blocked
+	_rebuild_conveyors()
+
+
+## Returns the exit direction of the last station belt stub (right or left).
+func _exit_direction() -> Vector2:
+	var stations: Array = _data.get("stations", [])
+	if stations.size() < 2:
+		return Vector2(1, 0)
+	var last := stations.back() as Dictionary
+	var prev := stations[stations.size() - 2] as Dictionary
+	var lpx: int = last.get("posX", 0)
+	var ppx: int = prev.get("posX", 0)
+	if ppx > lpx:
+		return Vector2(-1, 0)
+	return Vector2(1, 0)
+
+
+## Returns the exit direction delta for the inter-station belt at index i→i+1.
+func _belt_dirs(i: int) -> Array:
+	var stations: Array = _data.get("stations", [])
+	var curr := stations[i] as Dictionary
+	var next := stations[i + 1] as Dictionary
+	var dx: int = next.get("posX", i + 1) - curr.get("posX", i)
+	var dy: int = next.get("posY", 0) - curr.get("posY", 0)
+	var from_dir: Vector2
+	var to_dir: Vector2
+	if dx > 0 and dy > 0:
+		from_dir = Vector2(1, 0);  to_dir = Vector2(0, -1)
+	elif dx < 0 and dy > 0:
+		from_dir = Vector2(0, 1);  to_dir = Vector2(1, 0)
+	elif dx > 0 and dy < 0:
+		from_dir = Vector2(1, 0);  to_dir = Vector2(0, 1)
+	elif dx < 0 and dy < 0:
+		from_dir = Vector2(0, -1); to_dir = Vector2(1, 0)
+	elif dx > 0:
+		from_dir = Vector2(1, 0);  to_dir = Vector2(-1, 0)
+	elif dx < 0:
+		from_dir = Vector2(-1, 0); to_dir = Vector2(1, 0)
+	elif dy > 0:
+		from_dir = Vector2(0, 1);  to_dir = Vector2(0, -1)
+	else:
+		from_dir = Vector2(0, -1); to_dir = Vector2(0, 1)
+	return [from_dir, to_dir]
+
+
+## Draw all + insert-station buttons overlaid on the station belt path.
+## Called from _rebuild_conveyors so buttons appear after the belt layer is built.
+func _rebuild_station_insert_buttons() -> void:
+	for child in _insert_btns.get_children():
+		child.queue_free()
+	var stations: Array = _data.get("stations", [])
+	if stations.is_empty():
+		return
+
+	var slot_h := 2.0 * TILE_SIZE
+	var mid_y := float(CONTENT_TOP) + slot_h / 2.0
+	var btn_size := Vector2(16.0, 16.0)
+	var blocked: bool = _station_insert_blocked
+	var tooltip_blocked := "Last station is blocked and can not move in any direction."
+
+	# Helper: place a styled + button above the belt at center_pt.
+	# Button is horizontally centered on center_pt.x; bottom edge at center_pt.y.
+	var _make_btn := func(center_pt: Vector2, idx) -> void:
+		var btn := Button.new()
+		btn.text = "+"
+		btn.size = btn_size
+		btn.position = Vector2(center_pt.x - btn_size.x * 0.5, center_pt.y - btn_size.y * 0.5)
+		Palette.style_button(btn, Conveyor.BELT_COLOR)
+		btn.disabled = blocked
+		if blocked:
+			btn.tooltip_text = tooltip_blocked
+		else:
+			btn.pressed.connect(func(): insert_station_requested.emit(_entity_id, idx))
+		_insert_btns.add_child(btn)
+
+	# First button: on the hopper→station[0] gap belt.
+	var gap_center := Vector2(float(INTAKE_W + HOPPER_W), mid_y)
+	_make_btn.call(gap_center, 1)
+
+	# Between-station buttons: midpoint of each inter-station belt segment.
+	for i in range(stations.size() - 1):
+		var dirs: Array = _belt_dirs(i)
+		var from_dir: Vector2 = dirs[0]
+		var to_dir: Vector2   = dirs[1]
+		var curr := stations[i] as Dictionary
+		var next := stations[i + 1] as Dictionary
+		var cpx: int = curr.get("posX", i)
+		var cpy: int = curr.get("posY", 0)
+		var npx: int = next.get("posX", i + 1)
+		var npy: int = next.get("posY", 0)
+		var from_pt := _station_card_edge(cpx, cpy, from_dir)
+		var to_pt   := _station_card_edge(npx, npy, to_dir)
+		var mid_pt  := (from_pt + to_pt) * 0.5
+		_make_btn.call(mid_pt, i + 2)
+
+	# Last button: placed 10px past exit edge (stub was drawn in _rebuild_conveyors).
+	var last := stations.back() as Dictionary
+	var lpx: int = last.get("posX", stations.size() - 1)
+	var lpy: int = last.get("posY", 0)
+	var exit_dir := _exit_direction()
+	var edge_pt := _station_card_edge(lpx, lpy, exit_dir)
+	# Center = edge_pt + exit_dir * (stub_len + half_btn_w)
+	var last_center := Vector2(
+		edge_pt.x + exit_dir.x * (10.0 + btn_size.x * 0.5) - exit_dir.x * 5.0,
+		edge_pt.y
+	)
+	_make_btn.call(last_center, null)
+
 func _rebuild_conveyors() -> void:
 	for child in _conveyors.get_children():
 		child.queue_free()
@@ -539,22 +659,20 @@ func _rebuild_conveyors() -> void:
 			_conveyors, Conveyor.BELT_COLOR, from_dir, to_dir
 		)
 
-	# Last-station terminator: short stub with arrowhead showing exit direction.
+
+	# Last-station exit stub: 10px belt in exit direction (+ button follows it).
 	if not stations.is_empty():
-		var last := stations.back() as Dictionary
-		var lpx: int = last.get("posX", stations.size() - 1)
-		var lpy: int = last.get("posY", 0)
-		# Exit direction: opposite of how the previous station connected.
-		# Default right; flip to left if the previous station is to the right.
-		var exit_dir := Vector2(1, 0)
-		if stations.size() >= 2:
-			var prev := stations[stations.size() - 2] as Dictionary
-			if prev.get("posX", 0) > lpx:
-				exit_dir = Vector2(-1, 0)
-		Conveyor.draw_stub_terminal(
-			_station_card_edge(lpx, lpy, exit_dir),
-			exit_dir, _conveyors, Conveyor.BELT_COLOR
+		var last_s := stations.back() as Dictionary
+		var slpx: int = last_s.get("posX", stations.size() - 1)
+		var slpy: int = last_s.get("posY", 0)
+		var s_exit_dir := _exit_direction()
+		var s_edge_pt := _station_card_edge(slpx, slpy, s_exit_dir)
+		Conveyor.draw_animated(
+			s_edge_pt,
+			s_edge_pt + s_exit_dir * 10.0,
+			_conveyors
 		)
+
 
 	# Station zone → Output gap belt.
 	var has_output: bool = _data.get("hasOutput", true)
@@ -565,6 +683,8 @@ func _rebuild_conveyors() -> void:
 			Vector2(sx + CARD_INSET_H, mid_y),
 			_conveyors
 		)
+
+	_rebuild_station_insert_buttons()
 
 
 ## World-space left-edge center of station[index]. Used for Inventory→Station belts.

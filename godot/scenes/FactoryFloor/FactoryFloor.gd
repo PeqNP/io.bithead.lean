@@ -247,10 +247,10 @@ func _update_all_expansion_blocking() -> void:
 		var node: Node2D = _entity_nodes[eid]
 		if not node.get_meta("is_line", false):
 			continue
-		node.set_expansion_blocked(
-			_is_line_expansion_blocked(node, true),
-			_is_line_expansion_blocked(node, false)
-		)
+		var block_right: bool = _is_line_expansion_blocked(node, true)
+		var block_down: bool = _is_line_expansion_blocked(node, false)
+		node.set_expansion_blocked(block_right, block_down)
+		node.set_station_insert_blocked(_is_station_insert_blocked(node))
 
 
 ## Returns true if growing `line_node` by one station column (check_right=true)
@@ -276,6 +276,52 @@ func _is_line_expansion_blocked(line_node: Node2D, check_right: bool) -> bool:
 		if expanded.intersects(other_rect):
 			return true
 	return false
+
+
+## Returns true when no candidate position exists for the last station to move
+## after a new station is inserted anywhere on the line.
+func _is_station_insert_blocked(line_node: Node2D) -> bool:
+	var stations: Array = (line_node._data.get("stations", []) as Array)
+	if stations.is_empty():
+		return false
+	var last := stations.back() as Dictionary
+	var lpx: int = int(last.get("posX", 0))
+	var lpy: int = int(last.get("posY", 0))
+	var exit_x: int = 1
+	if stations.size() >= 2:
+		var prev := stations[stations.size() - 2] as Dictionary
+		if int(prev.get("posX", 0)) > lpx:
+			exit_x = -1
+	var primary := Vector2i(lpx + exit_x, lpy)
+	var candidates: Array = []
+	if exit_x < 0 and primary.x < 0:
+		candidates.append(Vector2i(lpx, lpy + 1))
+		candidates.append(Vector2i(lpx, lpy - 1))
+	else:
+		candidates.append(primary)
+	var max_px: int = 0
+	var max_py: int = 0
+	for s: Dictionary in stations:
+		max_px = max(max_px, int(s.get("posX", 0)))
+		max_py = max(max_py, int(s.get("posY", 0)))
+	for cand in candidates:
+		var cx: int = cand.x
+		var cy: int = cand.y
+		if cx < 0 or cy < 0:
+			continue
+		var occupied := false
+		for s: Dictionary in stations:
+			if int(s.get("posX", 0)) == cx and int(s.get("posY", 0)) == cy:
+				occupied = true
+				break
+		if occupied:
+			continue
+		if cx > max_px and _is_line_expansion_blocked(line_node, true):
+			continue
+		if cy > max_py and _is_line_expansion_blocked(line_node, false):
+			continue
+		return false
+	return true
 
 
 func _on_boss_error(message: String) -> void:
@@ -320,6 +366,14 @@ func _on_create_station(line_id: int) -> void:
 		"controller": "CreateFactoryModel",
 		"parameters": ["station", line_id],
 	})
+
+
+func _on_insert_station(line_id: int, index) -> void:
+	var body: Dictionary = {}
+	if index != null:
+		body["index"] = index
+	await BOSSBridge.post("/lean/line/%d/station" % line_id, body)
+	BOSSBridge.poll_snapshot()
 
 
 ## Add a temporary placeholder Line at the first available grid position.
@@ -528,6 +582,7 @@ func _wire_entity_signals(entity: Node2D, tile_w: int, tile_h: int) -> void:
 	if entity.get_meta("is_line", false):
 		entity.create_intake_queue_requested.connect(_on_create_intake_queue)
 		entity.create_station_requested.connect(_on_create_station)
+		entity.insert_station_requested.connect(_on_insert_station)
 
 
 func _on_move_requested(entity: Node2D, tile_w: int, tile_h: int) -> void:
@@ -569,6 +624,7 @@ func _confirm_drag() -> void:
 	_bg.floor_height_tiles = ceili(bg_bounds.size.y / float(TILE_SIZE))
 	_bg.queue_redraw()
 	_render_belts()
+	_update_all_expansion_blocking()
 
 
 func _cancel_drag() -> void:

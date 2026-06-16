@@ -126,8 +126,121 @@ func _handle_patch(path: String, body: Dictionary) -> Dictionary:
 
 
 func _handle_post(path: String, body: Dictionary) -> Dictionary:
+	var re := RegEx.new()
+
+	# POST /lean/line/{id}/station  body: {index: int (1-based) | absent for append}
+	re.compile("^/lean/line/(\\d+)/station$")
+	var m := re.search(path)
+	if m:
+		_insert_station(int(m.get_string(1)), body)
+		return {}
+
 	print("LocalBOSSBridgeBackend: stub POST %s %s" % [path, str(body)])
 	return {}
+
+
+## Insert a new station into a line.
+## body["index"] (1-based) shifts existing stations from that index onward;
+## absent or null means append after the last station.
+##
+## Cascade rules (mirrors FactoryFloor._is_station_insert_blocked):
+##   Exit direction: right (posX+1) unless prev.posX > last.posX → left (posX-1).
+##   For null/append: new station placed at last station's exit position; last stays.
+##   For index k: new station takes station[k-1]'s position; each station from
+##   k-1 onward inherits the next station's position; last station moves in exit dir.
+##   If exit direction would go negative (posX < 0): try posY+1 (down), then posY-1 (up).
+func _insert_station(line_id: int, body: Dictionary) -> void:
+	var lines: Array = (_snapshot.get("lines", []) as Array)
+	var line_dict: Dictionary = {}
+	for l: Dictionary in lines:
+		if l.get("id", -1) == line_id:
+			line_dict = l
+			break
+	if line_dict.is_empty():
+		push_warning("LocalBOSSBridgeBackend: line %d not found" % line_id)
+		return
+
+	var stations: Array = (line_dict.get("stations", []) as Array)
+
+	# Compute exit direction from last two stations.
+	var exit_dx: int = 1
+	if stations.size() >= 2:
+		var last_s := stations.back() as Dictionary
+		var prev_s := stations[stations.size() - 2] as Dictionary
+		if int(prev_s.get("posX", 0)) > int(last_s.get("posX", 0)):
+			exit_dx = -1
+
+	# Generate a new station id (max existing + 1, minimum 1).
+	var new_id: int = 1
+	for s: Dictionary in stations:
+		var sid: int = int(s.get("id", 0))
+		if sid >= new_id:
+			new_id = sid + 1
+
+	# Compute where the last station will move to (needed for both paths).
+	var last_dict: Dictionary = stations.back() as Dictionary if not stations.is_empty() else {}
+	var lpx: int = int(last_dict.get("posX", 0))
+	var lpy: int = int(last_dict.get("posY", 0))
+	var new_last_x: int = lpx + exit_dx
+	var new_last_y: int = lpy
+	if new_last_x < 0:
+		var moved := false
+		for try_y in [lpy + 1, lpy - 1]:
+			if try_y < 0:
+				continue
+			var taken := false
+			for s: Dictionary in stations:
+				if int(s.get("posX", 0)) == lpx and int(s.get("posY", 0)) == try_y:
+					taken = true
+					break
+			if not taken:
+				new_last_x = lpx
+				new_last_y = try_y
+				moved = true
+				break
+		if not moved:
+			push_warning("LocalBOSSBridgeBackend: no space on line %d for new station" % line_id)
+			return
+
+	var raw_index = body.get("index", null)
+
+	if raw_index == null:
+		# Append: new station placed at exit position; no cascading.
+		var new_station := {
+			"id": new_id, "posX": new_last_x, "posY": new_last_y,
+			"name": "New Station", "overlay": "none"
+		}
+		stations.append(new_station)
+	else:
+		# Indexed insert (1-based → 0-based).
+		var insert_idx: int = int(raw_index) - 1
+		insert_idx = clamp(insert_idx, 0, stations.size())
+
+		# Save positions from insert_idx to end before any mutation.
+		var saved: Array = []
+		for k in range(insert_idx, stations.size()):
+			var s := stations[k] as Dictionary
+			saved.append({"posX": int(s.get("posX", k)), "posY": int(s.get("posY", 0))})
+
+		# Cascade: each station[insert_idx..last] inherits successor's saved pos; last gets exit pos.
+		for k in range(insert_idx, stations.size()):
+			var s := stations[k] as Dictionary
+			var offset: int = k - insert_idx
+			if k == stations.size() - 1:
+				s["posX"] = new_last_x
+				s["posY"] = new_last_y
+			else:
+				s["posX"] = saved[offset + 1]["posX"]
+				s["posY"] = saved[offset + 1]["posY"]
+
+		# Insert new station with the first saved position.
+		var new_station := {
+			"id": new_id, "posX": saved[0]["posX"], "posY": saved[0]["posY"],
+			"name": "New Station", "overlay": "none"
+		}
+		stations.insert(insert_idx, new_station)
+
+	line_dict["stations"] = stations
 
 
 # ---------------------------------------------------------------------------
