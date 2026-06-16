@@ -759,7 +759,7 @@ func _render_belts() -> void:
 						station_world = line_node.get_station_card_bottom_world(i)
 						inv_dir      = Vector2(0, -1)
 						station_dir  = Vector2(0,  1)
-					Conveyor.draw_routed(
+					ConveyorBelt.draw_routed(
 							inv_world, station_world,
 							_belt_layer,
 							Palette.YELLOW_BELT,
@@ -777,7 +777,7 @@ func _render_belts() -> void:
 					else:
 						station_world = line_node.get_station_card_bottom_world(i)
 						sub_from_dir = Vector2(0, 1)    # exit downward
-					Conveyor.draw_routed_bidirectional(
+					ConveyorBelt.draw_routed_bidirectional(
 						station_world, sub_from_dir,
 						sub_node.get_first_intake_queue_left_world(), Vector2(-1, 0),
 						_belt_layer,
@@ -800,7 +800,7 @@ func _render_belts() -> void:
 					else:
 						station_world = line_node.get_station_card_bottom_world(i)
 						iq_from_dir = Vector2(0, 1)    # exit downward
-					Conveyor.draw_routed_bidirectional(
+					ConveyorBelt.draw_routed_bidirectional(
 						station_world, iq_from_dir,
 						target_line.get_intake_queue_left_world(iq_id), Vector2(-1, 0),
 						_belt_layer,

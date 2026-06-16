@@ -552,9 +552,9 @@ func _rebuild_station_insert_buttons() -> void:
 	# Helper: place a styled + button above the belt at center_pt.
 	# Button is horizontally centered on center_pt.x; bottom edge at center_pt.y.
 	var _make_btn := func(center_pt: Vector2, idx) -> void:
-		var btn := Conveyor.InsertButton.new()
+		var btn := ConveyorBelt.InsertButton.new()
 		btn.position = Vector2(center_pt.x - btn_size.x * 0.5, center_pt.y - btn_size.y * 0.5)
-		btn.setup(Conveyor.BELT_COLOR, blocked, tooltip_blocked if blocked else "")
+		btn.setup(ConveyorBelt.BELT_COLOR, blocked, tooltip_blocked if blocked else "")
 		if not blocked:
 			btn.pressed.connect(func(): insert_station_requested.emit(_entity_id, idx))
 		_insert_btns.add_child(btn)
@@ -576,8 +576,8 @@ func _rebuild_station_insert_buttons() -> void:
 		var npy: int = next.get("posY", 0)
 		var from_pt := _station_card_edge(cpx, cpy, from_dir)
 		var to_pt   := _station_card_edge(npx, npy, to_dir)
-		var belt_waypoints := Conveyor._build_stub_waypoints(from_pt, from_dir, to_pt, to_dir, Conveyor.STUB_LEN)
-		var mid_pt  := Conveyor.path_midpoint(belt_waypoints)
+		var belt_waypoints := ConveyorBelt._build_stub_waypoints(from_pt, from_dir, to_pt, to_dir, ConveyorBelt.STUB_LEN)
+		var mid_pt  := ConveyorBelt.path_midpoint(belt_waypoints)
 		_make_btn.call(mid_pt, i + 2)
 
 	# Last button: placed 10px past exit edge (stub was drawn in _rebuild_conveyors).
@@ -600,14 +600,14 @@ func _rebuild_conveyors() -> void:
 	var mid_y := float(CONTENT_TOP) + TILE_SIZE  # vertical center of row 0
 
 	# Intake → Hopper
-	Conveyor.draw_animated(
+	ConveyorBelt.draw_animated(
 		Vector2(INTAKE_W - CARD_INSET_H, mid_y),
 		Vector2(INTAKE_W + CARD_INSET_H, mid_y),
 		_conveyors
 	)
 
 	# Hopper → station zone (station[0] is always at posX=0, posY=0)
-	Conveyor.draw_animated(
+	ConveyorBelt.draw_animated(
 		Vector2(INTAKE_W + HOPPER_W - CARD_INSET_H, mid_y),
 		Vector2(INTAKE_W + HOPPER_W + CARD_INSET_H, mid_y),
 		_conveyors
@@ -649,10 +649,11 @@ func _rebuild_conveyors() -> void:
 		else:
 			from_dir = Vector2(0, -1); to_dir = Vector2(0, 1)
 
-		Conveyor.draw_routed(
-			_station_card_edge(cpx, cpy, from_dir),
-			_station_card_edge(npx, npy, to_dir),
-			_conveyors, Conveyor.BELT_COLOR, from_dir, to_dir
+		var from_pt := _station_card_edge(cpx, cpy, from_dir)
+		var to_pt   := _station_card_edge(npx, npy, to_dir)
+		ConveyorBelt.draw_routed(
+			from_pt, to_pt,
+			_conveyors, ConveyorBelt.BELT_COLOR, from_dir, to_dir
 		)
 
 
@@ -666,7 +667,7 @@ func _rebuild_conveyors() -> void:
 		var slpy: int = last_s.get("posY", 0)
 		var s_exit_dir := _exit_direction()
 		var s_edge_pt := _station_card_edge(slpx, slpy, s_exit_dir)
-		Conveyor.draw_animated(
+		ConveyorBelt.draw_animated(
 			s_edge_pt,
 			s_edge_pt + s_exit_dir * 10.0,
 			_conveyors
@@ -677,7 +678,7 @@ func _rebuild_conveyors() -> void:
 	var has_output: bool = _data.get("hasOutput", true)
 	if has_output:
 		var sx := float(INTAKE_W + HOPPER_W) + float(_max_station_pos_x() + 1) * float(STATION_W)
-		Conveyor.draw_animated(
+		ConveyorBelt.draw_animated(
 			Vector2(sx - CARD_INSET_H, mid_y),
 			Vector2(sx + CARD_INSET_H, mid_y),
 			_conveyors
