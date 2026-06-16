@@ -216,29 +216,65 @@ func _insert_station(line_id: int, body: Dictionary) -> void:
 		var insert_idx: int = int(raw_index) - 1
 		insert_idx = clamp(insert_idx, 0, stations.size())
 
-		# Save positions from insert_idx to end before any mutation.
-		var saved: Array = []
-		for k in range(insert_idx, stations.size()):
-			var s := stations[k] as Dictionary
-			saved.append({"posX": int(s.get("posX", k)), "posY": int(s.get("posY", 0))})
-
-		# Cascade: each station[insert_idx..last] inherits successor's saved pos; last gets exit pos.
-		for k in range(insert_idx, stations.size()):
-			var s := stations[k] as Dictionary
-			var offset: int = k - insert_idx
-			if k == stations.size() - 1:
-				s["posX"] = new_last_x
-				s["posY"] = new_last_y
+		# If inserting between two existing stations, check whether the cell
+		# one step in the first-leg direction from the preceding station is
+		# free. If so, place the new station there without cascading.
+		# First-leg direction: y-axis first when there is a y-delta (belt exits
+		# downward/upward before turning), otherwise x-axis.
+		var placed_without_cascade := false
+		if insert_idx > 0 and insert_idx < stations.size():
+			var prev_s := stations[insert_idx - 1] as Dictionary
+			var next_s := stations[insert_idx]     as Dictionary
+			var ppx: int = int(prev_s.get("posX", 0))
+			var ppy: int = int(prev_s.get("posY", 0))
+			var nnx: int = int(next_s.get("posX", 0))
+			var nny: int = int(next_s.get("posY", 0))
+			var step_x: int
+			var step_y: int
+			if nny != ppy:
+				step_x = 0
+				step_y = sign(nny - ppy)
 			else:
-				s["posX"] = saved[offset + 1]["posX"]
-				s["posY"] = saved[offset + 1]["posY"]
+				step_x = sign(nnx - ppx)
+				step_y = 0
+			var cx: int = ppx + step_x
+			var cy: int = ppy + step_y
+			if cx >= 0 and cy >= 0:
+				var occupied := false
+				for s: Dictionary in stations:
+					if int(s.get("posX", 0)) == cx and int(s.get("posY", 0)) == cy:
+						occupied = true
+						break
+				if not occupied:
+					stations.insert(insert_idx, {
+						"id": new_id, "posX": cx, "posY": cy,
+						"name": "New Station", "overlay": "none"
+					})
+					placed_without_cascade = true
 
-		# Insert new station with the first saved position.
-		var new_station := {
-			"id": new_id, "posX": saved[0]["posX"], "posY": saved[0]["posY"],
-			"name": "New Station", "overlay": "none"
-		}
-		stations.insert(insert_idx, new_station)
+		if not placed_without_cascade:
+			# Save positions from insert_idx to end before any mutation.
+			var saved: Array = []
+			for k in range(insert_idx, stations.size()):
+				var s := stations[k] as Dictionary
+				saved.append({"posX": int(s.get("posX", k)), "posY": int(s.get("posY", 0))})
+
+			# Cascade: each station[insert_idx..last] inherits successor's saved pos; last gets exit pos.
+			for k in range(insert_idx, stations.size()):
+				var s := stations[k] as Dictionary
+				var offset: int = k - insert_idx
+				if k == stations.size() - 1:
+					s["posX"] = new_last_x
+					s["posY"] = new_last_y
+				else:
+					s["posX"] = saved[offset + 1]["posX"]
+					s["posY"] = saved[offset + 1]["posY"]
+
+			# Insert new station with the first saved position.
+			stations.insert(insert_idx, {
+				"id": new_id, "posX": saved[0]["posX"], "posY": saved[0]["posY"],
+				"name": "New Station", "overlay": "none"
+			})
 
 	line_dict["stations"] = stations
 
