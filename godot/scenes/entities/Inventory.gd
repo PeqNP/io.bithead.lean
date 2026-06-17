@@ -152,15 +152,18 @@ func configure(data: Dictionary) -> void:
 	if order.is_empty():
 		_order_label.hide()
 	else:
-		var arrive: String = str(order.get("arriveDate", ""))
+		var arrive_raw = order.get("arriveDate", null)
+		var arrive: String = str(arrive_raw) if arrive_raw != null else ""
 		if not arrive.is_empty():
 			_order_label.text = "Arrived %s" % arrive
 		else:
-			var tracking: String = str(order.get("tracking", ""))
+			var tracking_raw = order.get("tracking", null)
+			var tracking: String = str(tracking_raw) if tracking_raw != null else ""
 			if not tracking.is_empty():
 				_order_label.text = "Shipped – %s" % tracking
 			else:
-				var eta: String = str(order.get("estimatedDeliveryDate", ""))
+				var eta_raw = order.get("estimatedDeliveryDate", null)
+				var eta: String = str(eta_raw) if eta_raw != null else ""
 				_order_label.text = "Order pending – ETA %s" % eta
 		_order_label.add_theme_font_size_override("font_size", FONT_SIZE)
 		_order_label.add_theme_color_override("font_color", Palette.CYAN)
