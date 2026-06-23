@@ -25,10 +25,6 @@ theme_override_constants/separation = 2
 text = "WUs"
 size_flags_horizontal = 3
 
-[node name="OpsButton" type="Button" parent="Layout/Buttons"]
-text = "Ops"
-size_flags_horizontal = 3
-
 [node name="Controls" type="HBoxContainer" parent="."]
 visible = false
 theme_override_constants/separation = 4

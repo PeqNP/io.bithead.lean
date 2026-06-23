@@ -91,7 +91,7 @@ func _can_done() -> bool:
 
 
 func _on_open_pressed() -> void:
-	BOSSBridge.open_window("StationWorkspace", [_data.get("id", 0)])
+	BOSSBridge.open_window("Workspace", [_data.get("id", 0)])
 
 
 func _input(event: InputEvent) -> void:

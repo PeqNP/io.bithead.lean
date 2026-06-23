@@ -15,7 +15,7 @@ const BORDER_WIDTH  := 2.0
 const FONT_SIZE     := 10
 const SMALL_FONT    := 9
 
-## Emitted when the Work Units or Operations button is pressed.
+## Emitted when the Work Units button is pressed.
 ## Line.gd listens to close overlays on other stations first.
 signal overlay_requested(station: Node2D, overlay_type: String)
 ## Emitted when a directional move button is tapped.
@@ -43,7 +43,6 @@ var _delete_btn: Button = null  # red delete button shown in delete mode
 @onready var _name_label:  Label         = $Layout/Name
 @onready var _cycle_label: Label         = $Layout/CycleTime
 @onready var _wu_btn:      Button        = $Layout/Buttons/WUButton
-@onready var _ops_btn:     Button        = $Layout/Buttons/OpsButton
 @onready var _controls:    HBoxContainer = $Controls
 @onready var _edit_btn:    Button        = $Controls/EditButton
 @onready var _btn_up:      Button        = $MoveUp
@@ -55,7 +54,6 @@ var _delete_btn: Button = null  # red delete button shown in delete mode
 func _ready() -> void:
 	set_process_input(true)
 	_wu_btn.pressed.connect(func(): overlay_requested.emit(self, "work_units"))
-	_ops_btn.pressed.connect(func(): overlay_requested.emit(self, "operations"))
 	Palette.style_edit_button(_edit_btn)
 	_edit_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	_edit_btn.pressed.connect(_on_edit_pressed)
@@ -123,12 +121,10 @@ func configure(data: Dictionary, station_index: int,
 	_cycle_label.add_theme_font_size_override("font_size", SMALL_FONT)
 
 	var wu_count: int = (data.get("workUnits", []) as Array).size()
-	_wu_btn.text = "WUs (%d)" % wu_count
+	_wu_btn.text = "Work Units (%d)" % wu_count
 	_wu_btn.add_theme_font_size_override("font_size", SMALL_FONT)
-	_ops_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	var accent := _parse_color(data.get("color", null), "border", BORDER_COLOR)
 	Palette.style_button(_wu_btn, accent)
-	Palette.style_button(_ops_btn, accent)
 
 	_update_move_buttons(accent, occupied)
 	queue_redraw()
