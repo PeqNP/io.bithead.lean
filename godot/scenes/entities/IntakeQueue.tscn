@@ -22,9 +22,16 @@ visible = false
 [node name="Spacer" type="Control" parent="Layout"]
 size_flags_vertical = 3
 
-[node name="WUButton" type="Button" parent="Layout"]
+[node name="WURow" type="HBoxContainer" parent="Layout"]
+theme_override_constants/separation = 4
+size_flags_horizontal = 3
+
+[node name="WUButton" type="Button" parent="Layout/WURow"]
 text = "Work Units (0)"
 size_flags_horizontal = 3
+
+[node name="AddButton" type="Button" parent="Layout/WURow"]
+text = "Add"
 
 [node name="Controls" type="HBoxContainer" parent="."]
 visible = false

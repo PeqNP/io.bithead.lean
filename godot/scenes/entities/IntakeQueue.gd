@@ -24,7 +24,8 @@ var _delete_btn: Button = null
 @onready var _name_label:   Label         = $Layout/Name
 @onready var _cycle_label:  Label         = $Layout/CycleTime
 @onready var _dist_label:   Label         = $Layout/Distribution
-@onready var _wu_btn:       Button        = $Layout/WUButton
+@onready var _wu_btn:       Button        = $Layout/WURow/WUButton
+@onready var _add_wu_btn:   Button        = $Layout/WURow/AddButton
 @onready var _controls:     HBoxContainer = $Controls
 @onready var _edit_btn:     Button        = $Controls/EditButton
 
@@ -34,6 +35,15 @@ func _ready() -> void:
 	Palette.style_edit_button(_edit_btn)
 	_edit_btn.add_theme_font_size_override("font_size", SMALL_FONT)
 	_edit_btn.pressed.connect(_on_edit_pressed)
+	Palette.style_button(_add_wu_btn, Palette.GREEN)
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var sb := _add_wu_btn.get_theme_stylebox(state) as StyleBoxFlat
+		if sb:
+			sb.content_margin_left  = 10.0
+			sb.content_margin_right = 10.0
+	_add_wu_btn.add_theme_font_size_override("font_size", SMALL_FONT)
+	_add_wu_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_add_wu_btn.pressed.connect(_on_add_wu_pressed)
 	_controls.resized.connect(_reposition_controls)
 	_controls.hide()
 	_delete_btn = Button.new()
@@ -119,6 +129,10 @@ func _draw() -> void:
 
 func _on_wu_pressed(iq_id: int) -> void:
 	BOSSBridge.open_window("WorkUnits", [iq_id])
+
+
+func _on_add_wu_pressed() -> void:
+	BOSSBridge.open_window("CreateWorkUnit", [int(_data.get("id", 0))])
 
 
 func set_add_mode(_on: bool) -> void:
