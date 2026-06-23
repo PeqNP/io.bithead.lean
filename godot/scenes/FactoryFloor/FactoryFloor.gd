@@ -742,19 +742,23 @@ func _collect_connected_ids(entity_id: int, is_line: bool, result: Dictionary) -
 		var c_line_id: int = line_data.get("id", 0)
 		for st in (line_data.get("stations", []) as Array):
 			var inv_raw = st.get("connectsToInventory")
-			var sub_raw = st.get("connectsToLine")
+			var iq_raw  = st.get("connectsToIntakeQueue")
 			var inv_id: int = int(inv_raw) if inv_raw != null else 0
-			var sub_id: int = int(sub_raw) if sub_raw != null else 0
-			# Focused line → mark its connected inventory and sub-line.
+			# Focused line → mark its connected inventory and the line owning the intake queue.
 			if is_line and c_line_id == entity_id:
 				if inv_id != 0: result["inv:%d" % inv_id] = true
-				if sub_id != 0: result["line:%d" % sub_id] = true
+				if iq_raw != null:
+					var owner = _iq_to_line.get(int(iq_raw))
+					if owner != null:
+						result["line:%d" % owner._entity_id] = true
 			# Focused inventory → mark the line that references it.
 			if not is_line and inv_id == entity_id:
 				result["line:%d" % c_line_id] = true
-			# Focused sub-line → mark the line that references it.
-			if is_line and sub_id == entity_id:
-				result["line:%d" % c_line_id] = true
+			# Focused line that owns an intake queue → mark lines whose stations reference that queue.
+			if is_line and iq_raw != null:
+				var owner = _iq_to_line.get(int(iq_raw))
+				if owner != null and owner._entity_id == entity_id:
+					result["line:%d" % c_line_id] = true
 
 
 ## Rebuild all cross-entity conveyor belts from the last snapshot.
@@ -824,26 +828,6 @@ func _render_belts() -> void:
 							Palette.YELLOW_BELT,
 							inv_dir, station_dir
 					)
-			var sub_raw = st.get("connectsToLine")
-			if sub_raw != null:
-				var sub_node = line_nodes.get(int(sub_raw))
-				if sub_node != null:
-					var station_world: Vector2
-					var sub_from_dir: Vector2
-					if sub_node.position.y < line_node.position.y:
-						station_world = line_node.get_station_card_top_world(i)
-						sub_from_dir = Vector2(0, -1)   # exit upward
-					else:
-						station_world = line_node.get_station_card_bottom_world(i)
-						sub_from_dir = Vector2(0, 1)    # exit downward
-					ConveyorBelt.draw_routed_bidirectional(
-						station_world, sub_from_dir,
-						sub_node.get_first_intake_queue_left_world(), Vector2(-1, 0),
-						_belt_layer,
-						Palette.VIOLET_BELT,
-						sub_node.get_bounds_world()
-					)
-
 			# Station → IntakeQueue bidirectional belt (teal).
 			# Two side-by-side lanes: one flowing into the queue, one flowing back toward the station.
 			var iq_raw = st.get("connectsToIntakeQueue")

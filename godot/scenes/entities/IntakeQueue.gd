@@ -71,6 +71,7 @@ func configure(data: Dictionary, card_x: float, card_y: float,
 	_layout.size = Vector2(card_w - 8, card_h - 8)
 
 	_controls.reset_size()
+	_name_label.text = str(data.get("name", ""))
 	_name_label.add_theme_color_override("font_color", LABEL_COLOR)
 	_name_label.add_theme_font_size_override("font_size", FONT_SIZE)
 
