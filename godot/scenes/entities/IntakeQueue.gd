@@ -156,7 +156,7 @@ func _on_delete_pressed() -> void:
 
 
 func _on_edit_pressed() -> void:
-	BOSSBridge.open_window("EditIntakeQueue", [int(_data.get("id", 0))])
+	BOSSBridge.open_window("IntakeQueue", [int(_data.get("id", 0))])
 
 
 func _reposition_controls() -> void:

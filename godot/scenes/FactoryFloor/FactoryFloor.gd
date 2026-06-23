@@ -131,6 +131,8 @@ func _on_boss_command(c_name: String, data: Dictionary) -> void:
 		"configure":
 			BOSSBridge.configure(data.get("factoryId", 0), data.get("baseUrl", ""))
 			_restore_viewport()
+		"factory-floor":
+			BOSSBridge.poll_snapshot()
 		_:
 			push_warning("FactoryFloor: unknown BOSS command '%s'" % c_name)
 

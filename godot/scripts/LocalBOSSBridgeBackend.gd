@@ -24,6 +24,14 @@ func request(method: String, path: String, body: Dictionary) -> Dictionary:
 	if method == "GET" and path.begins_with("/lean/factory-floor/"):
 		return _snapshot
 
+	# GET /lean/create-work-unit/{intakeQueueId} — pre-populate Create Work Unit form
+	if method == "GET" and path.begins_with("/lean/create-work-unit/"):
+		return {
+			"intakeQueueName": "Tasks",
+			"companyId": 1,
+			"operator": { "id": 1, "name": "Local Operator", "type": "Human" }
+		}
+
 	if method == "PATCH":
 		return _handle_patch(path, body)
 
